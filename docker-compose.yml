@@ -1,0 +1,22 @@
+services:
+  sim:
+    build: .
+    volumes:
+      - .:/workspace
+    command: traffic-sim compare --config configs/experiment.yaml
+
+  dashboard:
+    build: .
+    volumes:
+      - .:/workspace
+    ports:
+      - "8501:8501"
+    command: streamlit run app/dashboard.py --server.address 0.0.0.0
+
+  api:
+    build: .
+    volumes:
+      - .:/workspace
+    ports:
+      - "8000:8000"
+    command: uvicorn app.api:app --host 0.0.0.0 --port 8000
