@@ -35,8 +35,10 @@ def compare(config: str = typer.Option(..., "--config", "-c")) -> None:
     results, summary = run_experiment(experiment_config)
     output_path = experiment_config.output.get("path", "outputs/compare_results.json")
     csv_path = experiment_config.output.get("summary_csv", "outputs/compare_summary.csv")
-    save_results(results, summary, output_path, csv_path)
+    report_path = experiment_config.output.get("report_markdown", "outputs/experiment_report.md")
+    save_results(results, summary, output_path, csv_path, report_path, experiment_config)
     typer.echo(summary.to_string(index=False))
+    typer.echo(f"\nОтчёт сохранён: {report_path}")
 
 
 @app.command()

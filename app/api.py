@@ -15,6 +15,6 @@ def health() -> dict[str, str]:
 
 @app.get("/experiment/default")
 def default_experiment() -> dict:
-    config = load_experiment_config("configs/experiment.yaml")
+    config = load_experiment_config("configs/demo_uniform.yaml")
     _, summary = run_experiment(config)
     return {"summary": summary.to_dict(orient="records")}

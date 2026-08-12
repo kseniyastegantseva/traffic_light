@@ -1,12 +1,16 @@
 services:
   sim:
-    build: .
+    build:
+      context: .
+      target: base
     volumes:
       - .:/workspace
-    command: traffic-sim compare --config configs/experiment.yaml
+    command: traffic-sim compare --config configs/demo_uniform.yaml
 
   dashboard:
-    build: .
+    build:
+      context: .
+      target: app
     volumes:
       - .:/workspace
     ports:
@@ -14,7 +18,9 @@ services:
     command: streamlit run app/dashboard.py --server.address 0.0.0.0
 
   api:
-    build: .
+    build:
+      context: .
+      target: app
     volumes:
       - .:/workspace
     ports:

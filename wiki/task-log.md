@@ -21,3 +21,14 @@
 - Добавлен `docker-compose.ci.yml` без bind mount как рабочий Docker-путь, когда Docker Desktop доступен из Windows, но WSL integration ещё не настроена.
 - По просьбе пользователя этапы Ponytail и Codebase Memory MCP временно пропущены и больше не считаются блокером текущего этапа.
 - WIKI и проектная документация переведены на русский язык; в `AGENTS.md` закреплено правило вести документацию на русском.
+
+## 2026-08-12 — Демонстрационный равномерный сценарий и dashboard
+
+- Добавлен `configs/demo_uniform.yaml` с равномерной нагрузкой 6 автомобилей в минуту по каждому направлению.
+- Расширен экспериментальный runner: теперь он поддерживает именованные сценарии, добавляет поля `scenario` и `scenario_title`, считает улучшение среднего ожидания относительно `fixed`.
+- Добавлена генерация единого Markdown-отчёта эксперимента.
+- Улучшен Streamlit dashboard: добавлены KPI, выбор файла результатов, выбор сценария, графики ожидания, улучшения к `fixed`, распределения по seed, ожидания по направлениям и вкладка Markdown-отчёта.
+- Локально сгенерированы `outputs/demo_uniform_results.json`, `outputs/demo_uniform_summary.csv`, `outputs/demo_uniform_report.md`.
+- Локальный dashboard запущен на `http://localhost:8501` и проверен HTTP-ответом `200 OK`.
+- Dockerfile разделён на target `base` для экспериментов и target `app` для dashboard/API, чтобы ускорить сборку CLI-образа.
+- Проверено `docker compose -f docker-compose.ci.yml run --rm --no-deps sim traffic-sim compare --config configs/demo_uniform.yaml`: демонстрационный эксперимент успешно выполняется в свежем Docker-образе.

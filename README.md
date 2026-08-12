@@ -8,7 +8,7 @@
 
 ```bash
 docker compose build
-docker compose run --rm sim traffic-sim compare --config configs/experiment.yaml
+docker compose run --rm sim traffic-sim compare --config configs/demo_uniform.yaml
 docker compose up dashboard
 ```
 
@@ -18,15 +18,17 @@ Dashboard будет доступен на `http://localhost:8501`.
 
 ```bash
 docker compose -f docker-compose.ci.yml build
-docker compose -f docker-compose.ci.yml run --rm sim traffic-sim compare --config configs/experiment.yaml
+docker compose -f docker-compose.ci.yml run --rm sim traffic-sim compare --config configs/demo_uniform.yaml
 docker compose -f docker-compose.ci.yml up dashboard
 ```
+
+`sim`-образ собирается на лёгком Docker target `base`. Dashboard и API используют target `app`, куда дополнительно устанавливаются Streamlit, Plotly и FastAPI.
 
 ## Запуск без Docker
 
 ```bash
 python -m pip install -e ".[dev]"
-traffic-sim compare --config configs/experiment.yaml
+traffic-sim compare --config configs/demo_uniform.yaml
 streamlit run app/dashboard.py
 ```
 
@@ -36,6 +38,7 @@ streamlit run app/dashboard.py
 traffic-sim run --config configs/base.yaml
 traffic-sim train --config configs/ai.yaml
 traffic-sim compare --config configs/experiment.yaml
+traffic-sim compare --config configs/demo_uniform.yaml
 ```
 
 Проектная память, решения и журнал задач ведутся в `wiki/`.

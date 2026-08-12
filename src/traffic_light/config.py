@@ -46,9 +46,20 @@ class ExperimentSimulationConfig(BaseModel):
     service_time_seconds: float = Field(default=2.0, gt=0)
 
 
-class ExperimentConfig(BaseModel):
-    simulation: ExperimentSimulationConfig
+class ScenarioConfig(BaseModel):
+    name: str
+    title: str
+    description: str = ""
     intersection: IntersectionConfig
+
+
+class ExperimentConfig(BaseModel):
+    name: str = "experiment"
+    title: str = "Эксперимент"
+    description: str = ""
+    simulation: ExperimentSimulationConfig
+    intersection: IntersectionConfig | None = None
+    scenarios: list[ScenarioConfig] | None = None
     controllers: list[ControllerConfig]
     output: dict[str, str] = Field(default_factory=dict)
 
