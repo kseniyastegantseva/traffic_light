@@ -1,20 +1,20 @@
-# Project Strategy
+# Стратегия проекта
 
-## Research Goal
+## Исследовательская цель
 
-Develop an experimental justification for intelligent traffic-light phase control that reduces vehicle waiting time at a regulated intersection.
+Разработать экспериментальное обоснование эффективности интеллектуального управления фазами светофора для сокращения времени ожидания транспорта на регулируемом перекрёстке.
 
-## Technical Strategy
+## Техническая стратегия
 
-- Build a transparent discrete-event simulator in Python using SimPy.
-- Compare at least three control strategies:
-  - fixed-time baseline;
-  - actuated adaptive baseline;
-  - AI-oriented pressure-based controller, later replaceable by trained RL policy.
-- Use repeated seeded runs and confidence intervals for experimental claims.
-- Visualize results through Streamlit and Plotly.
-- Keep all commands reproducible through Docker Compose.
+- Построить прозрачную дискретно-событийную модель на Python с использованием SimPy.
+- Сравнивать минимум три стратегии управления:
+  - фиксированное время фаз;
+  - адаптивное управление по очередям;
+  - интеллектуальная стратегия, ориентированная на давление очередей и готовая к замене обученной RL-политикой.
+- Использовать несколько запусков с разными seed и доверительные интервалы для экспериментальных выводов.
+- Визуализировать результаты через Streamlit и Plotly.
+- Обеспечить воспроизводимость через Docker Compose.
 
-## Current Decision
+## Текущее решение
 
-The first implementation uses a custom SimPy model instead of SUMO to keep the scientific mechanics inspectable and easy to explain.
+Первая версия использует собственную SimPy-модель вместо SUMO, чтобы логика эксперимента была прозрачной, объяснимой и удобной для научного описания.

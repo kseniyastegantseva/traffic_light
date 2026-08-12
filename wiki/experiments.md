@@ -1,26 +1,26 @@
-# Experiments
+# Эксперименты
 
-## Metrics
+## Метрики
 
-- Average wait time.
-- Median wait time.
-- Maximum wait time.
-- Average queue length.
-- Throughput per hour.
-- Stops.
-- Fairness index across directions.
-- 95% confidence interval half-width for average wait time.
+- Среднее время ожидания.
+- Медианное время ожидания.
+- Максимальное время ожидания.
+- Средняя длина очереди.
+- Пропускная способность в час.
+- Количество остановок.
+- Индекс справедливости между направлениями.
+- Полуширина 95% доверительного интервала для среднего времени ожидания.
 
-## Baselines
+## Базовые стратегии
 
-- `fixed`: switches by a constant phase duration.
-- `actuated`: switches when cross-direction queue pressure is higher after minimum green.
-- `ai`: pressure-maximizing controller prepared as the v1 intelligent policy baseline.
+- `fixed`: переключение по фиксированной длительности фазы.
+- `actuated`: переключение после минимального зелёного, если давление очереди на поперечном направлении выше.
+- `ai`: интеллектуальная baseline-стратегия, выбирающая фазу с максимальным давлением очередей.
 
-## Default Scenario
+## Сценарий по умолчанию
 
-The default experiment runs five random seeds for each controller using `configs/experiment.yaml`.
+Эксперимент по умолчанию запускает пять random seed для каждой стратегии из `configs/experiment.yaml`.
 
-## Initial Verification Result
+## Первый проверочный результат
 
-The first seeded comparison produced the expected result ordering: adaptive and AI-oriented controllers reduced average wait time compared with the fixed-time baseline. Generated files are stored under `outputs/` locally and ignored by git.
+Первое сравнение показало ожидаемую картину: адаптивная и AI-ориентированная стратегии сокращают среднее ожидание относительно фиксированного baseline. Сгенерированные файлы сохраняются локально в `outputs/` и игнорируются git.

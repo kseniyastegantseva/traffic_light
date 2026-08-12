@@ -1,14 +1,14 @@
-# Architecture
+# Архитектура
 
-## Runtime
+## Среда выполнения
 
-- Python package: `traffic_light`
-- CLI entrypoint: `traffic-sim`
+- Python-пакет: `traffic_light`
+- CLI-точка входа: `traffic-sim`
 - Dashboard: `app/dashboard.py`
 - API: `app/api.py`
-- Configs: YAML files under `configs/`
+- Конфиги: YAML-файлы в `configs/`
 
-## Public CLI
+## Публичный CLI
 
 ```bash
 traffic-sim run --config configs/base.yaml
@@ -16,20 +16,22 @@ traffic-sim train --config configs/ai.yaml
 traffic-sim compare --config configs/experiment.yaml
 ```
 
-## Core Components
+## Основные компоненты
 
-- `config.py` validates YAML configs with Pydantic.
-- `controllers.py` contains fixed-time, actuated, and AI-oriented phase controllers.
-- `simulation.py` runs the SimPy discrete-event intersection model.
-- `experiments.py` runs seeded comparisons and saves JSON/CSV outputs.
-- `gym_env.py` provides a small Gymnasium-compatible shell for future RL training.
+- `config.py` валидирует YAML-конфиги через Pydantic.
+- `controllers.py` содержит фиксированную, адаптивную и AI-ориентированную стратегии управления фазами.
+- `simulation.py` запускает дискретно-событийную модель перекрёстка на SimPy.
+- `experiments.py` выполняет сравнение стратегий по нескольким seed и сохраняет JSON/CSV-результаты.
+- `gym_env.py` содержит минимальную Gymnasium-совместимую оболочку для будущего RL-обучения.
 
 ## Docker
 
-Use Docker Compose services:
+Docker Compose содержит сервисы:
 
-- `sim` for experiments;
-- `dashboard` for Streamlit visualization;
-- `api` for FastAPI endpoints.
+- `sim` — запуск экспериментов;
+- `dashboard` — Streamlit-визуализация;
+- `api` — FastAPI endpoint.
 
-Current environment note: Docker files are present and ready, but Docker CLI was not available in the WSL shell used for the initial scaffold.
+Текущий рабочий способ на машине пользователя: Docker Desktop установлен в Windows, а команды Docker доступны из PowerShell. В WSL установлен Docker CLI, но socket Docker Desktop не подключён к Ubuntu напрямую; если это понадобится, нужно включить WSL integration для дистрибутива `Ubuntu` в настройках Docker Desktop.
+
+Для проверки без WSL bind mount используется `docker-compose.ci.yml`. Он не монтирует текущую папку внутрь контейнера и запускает код, скопированный в образ на этапе сборки.

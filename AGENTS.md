@@ -1,75 +1,56 @@
 # AGENTS.md
 
-## Project Mission
+## Назначение проекта
 
-This repository implements only **Model 2: intelligent traffic light control** for a regulated intersection.
-Model 1, photo analysis, is out of scope until explicitly requested.
+Репозиторий реализует только **Модель 2: интеллектуальное управление фазами светофора** на регулируемом перекрёстке.
+**Модель 1: анализ фотографии** не входит в текущий этап и не должна реализовываться без прямого запроса пользователя.
 
-Research topic: improving traffic-flow management at a signalized intersection using AI algorithms, with experimental justification through discrete-event simulation.
+Тема исследования: повышение эффективности управления транспортными потоками на регулируемом перекрёстке с применением алгоритмов искусственного интеллекта и последующим экспериментальным обоснованием на основе дискретно-событийного моделирования.
 
-Primary goal: prove whether intelligent phase control reduces vehicle waiting time compared with baseline signal strategies.
+Цель: показать, сокращает ли интеллектуальное управление фазами среднее время ожидания транспорта по сравнению с базовыми стратегиями.
 
-## Mandatory Agent Workflow
+## Обязательный порядок работы агента
 
-Before every new task:
+Перед каждой новой задачей:
 
-1. Read this file.
-2. Read the current WIKI entry point: `wiki/README.md`.
-3. Check the task journal: `wiki/task-log.md`.
-4. Use existing project patterns before adding new abstractions.
+1. Прочитать этот файл.
+2. Прочитать точку входа WIKI: `wiki/README.md`.
+3. Проверить журнал задач: `wiki/task-log.md`.
+4. Использовать существующие проектные решения и паттерны перед добавлением новых абстракций.
 
-After every completed task:
+После каждой завершённой задачи:
 
-1. Update the relevant WIKI pages.
-2. Add a short entry to `wiki/task-log.md`.
-3. Run the relevant tests or document why they could not be run.
-4. Commit and push changes to `origin/main`, unless the user asks for another branch.
+1. Обновить соответствующие страницы WIKI.
+2. Добавить краткую запись в `wiki/task-log.md`.
+3. Запустить релевантные проверки или явно записать, почему они не запускались.
+4. Закоммитить и запушить изменения в `origin/main`, если пользователь не указал другую ветку.
 
-## Engineering Rules
+## Инженерные правила
 
-- Develop and run the project through Docker whenever Docker is available.
-- Keep code minimal and understandable: prefer the standard library, existing dependencies, and simple interfaces.
-- Do not implement Model 1 code in this repository phase.
-- Keep experiments reproducible through explicit configs and random seeds.
-- Store generated experiment outputs under `outputs/`; do not commit large generated files unless explicitly needed.
-- Public interfaces must remain stable once documented in `wiki/architecture.md`.
+- Вести всю документацию и WIKI на русском языке.
+- Разрабатывать и проверять проект через Docker, когда Docker доступен.
+- Сохранять минимальную и понятную архитектуру: сначала использовать стандартную библиотеку, уже подключённые зависимости и существующие интерфейсы.
+- Не реализовывать Модель 1 в рамках текущего этапа.
+- Делать эксперименты воспроизводимыми через явные конфиги и random seed.
+- Сохранять результаты экспериментов в `outputs/`; большие сгенерированные файлы не коммитить без отдельной необходимости.
+- Не ломать публичные интерфейсы, описанные в `wiki/architecture.md`, без обновления документации.
 
-## Ponytail
+## Ponytail и Codebase Memory MCP
 
-Use Ponytail principles throughout this project:
+На текущем этапе пользователь попросил временно пропустить установку и использование Ponytail и Codebase Memory MCP.
 
-- Does this need to exist? If not, skip it.
-- Is it already in the codebase? Reuse it.
-- Does Python or an installed dependency already solve it? Use that.
-- Add only the minimum code needed for the task, without removing validation, reproducibility, or tests.
+До возврата к этому пункту:
 
-Installation command for Codex environments:
+- не тратить время задачи на их установку;
+- не считать их отсутствие блокером;
+- продолжать использовать `AGENTS.md`, WIKI, `rg`, тесты и git-историю как источники проектного контекста.
 
-```bash
-codex plugin marketplace add DietrichGebert/ponytail
-codex plugin add ponytail@ponytail
-```
-
-If `codex` or Node.js is unavailable in the execution environment, record that blocker in `wiki/task-log.md` and continue with the written rules above.
-
-## Codebase Memory MCP
-
-Use Codebase Memory MCP for codebase indexing and project memory whenever available.
-
-Installation command for Linux/WSL:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash
-```
-
-After installation, restart the agent/session if required and index this repository. If the MCP tools are not available in the active session, continue using `rg`, tests, and the WIKI as the project memory source.
-
-## Core Stack
+## Основной стек
 
 - Python 3.12
-- SimPy for discrete-event traffic simulation
-- Gymnasium-compatible environment for AI-controller experiments
+- SimPy для дискретно-событийной симуляции
+- Gymnasium-совместимая среда для будущих AI/RL-экспериментов
 - Typer CLI
-- FastAPI API surface
+- FastAPI API
 - Streamlit + Plotly dashboard
-- Docker Compose for local execution
+- Docker Compose для локального запуска

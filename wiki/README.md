@@ -1,16 +1,20 @@
-# Project WIKI
+# WIKI проекта
 
-This WIKI is the operational memory for the project. Agents must read it before work and update it after completed tasks.
+Эта WIKI является рабочей памятью проекта. Агент обязан читать её перед началом задачи и обновлять после завершения задачи.
 
-## Current Scope
+## Текущий объём работ
 
-Active module: **Model 2 — intelligent traffic light**.
+Активный модуль: **Модель 2 — интеллектуальный светофор**.
 
-Out of scope for now: **Model 1 — photo analysis**.
+Вне текущего объёма: **Модель 1 — анализ фотографии**.
 
-## Pages
+## Страницы
 
-- `project-strategy.md` — research goal and development strategy.
-- `architecture.md` — code structure and public interfaces.
-- `experiments.md` — experiment design and metrics.
-- `task-log.md` — chronological record of completed work and blockers.
+- `project-strategy.md` — цель исследования и стратегия разработки.
+- `architecture.md` — структура кода и публичные интерфейсы.
+- `experiments.md` — дизайн экспериментов и метрики.
+- `task-log.md` — хронологический журнал выполненных задач и ограничений среды.
+
+## Правило документации
+
+Вся WIKI и проектная документация ведутся на русском языке.
