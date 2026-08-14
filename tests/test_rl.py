@@ -5,7 +5,7 @@ from traffic_light.config import load_run_config
 from traffic_light.controllers import ControllerState, QLearningPolicyController
 from traffic_light.experiments import run_experiment
 from traffic_light.gym_env import TrafficLightEnv
-from traffic_light.rl import discretize_observation, train_q_learning
+from traffic_light.rl import discretize_observation, run_training_sweep, train_q_learning
 
 
 def test_traffic_light_env_is_reproducible_for_seed():
@@ -77,7 +77,7 @@ def test_q_learning_controller_uses_saved_policy(tmp_path: Path):
     assert phase == "east_west"
 
 
-def test_experiment_suite_with_q_learning_policy_runs(tmp_path: Path, monkeypatch):
+def test_experiment_suite_with_q_learning_policy_runs(tmp_path: Path):
     config = load_run_config("configs/ai.yaml")
     policy_path = Path("outputs/q_learning_policy.json")
     if not policy_path.exists():
@@ -91,3 +91,24 @@ def test_experiment_suite_with_q_learning_policy_runs(tmp_path: Path, monkeypatc
     results, summary = run_experiment(experiment_config)
     assert len(results) == 4
     assert "q_learning" in set(summary["controller"])
+
+
+def test_training_sweep_writes_report(tmp_path: Path):
+    config = load_run_config("configs/ai.yaml")
+    json_path = tmp_path / "sweep.json"
+    csv_path = tmp_path / "sweep.csv"
+    report_path = tmp_path / "sweep.md"
+
+    frame = run_training_sweep(
+        config,
+        [1, 2],
+        output_path=str(json_path),
+        csv_path=str(csv_path),
+        report_path=str(report_path),
+    )
+
+    assert list(frame["episodes"]) == [1, 2]
+    assert json_path.exists()
+    assert csv_path.exists()
+    assert report_path.exists()
+    assert "Sweep обучения Q-learning" in report_path.read_text(encoding="utf-8")

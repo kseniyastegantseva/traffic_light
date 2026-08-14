@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from traffic_light.config import RunConfig
 from traffic_light.gym_env import TrafficLightEnv
@@ -85,6 +86,38 @@ def train_q_learning(
     )
 
 
+def run_training_sweep(
+    config: RunConfig,
+    episode_values: list[int],
+    output_path: str = "outputs/q_learning_sweep.json",
+    csv_path: str = "outputs/q_learning_sweep.csv",
+    report_path: str = "outputs/q_learning_sweep.md",
+) -> pd.DataFrame:
+    rows = []
+    for episodes in episode_values:
+        policy_path = f"outputs/q_learning_policy_{episodes}.json"
+        result = train_q_learning(config, episodes=episodes, policy_path=policy_path)
+        rows.append(result.to_dict())
+
+    frame = pd.DataFrame(rows).sort_values("episodes").reset_index(drop=True)
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(report_path).parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "config": {
+            "duration_seconds": config.simulation.duration_seconds,
+            "seed": config.simulation.seed,
+            "decision_interval_seconds": config.controller.decision_interval_seconds,
+        },
+        "runs": frame.to_dict(orient="records"),
+        "best_by_average_queue": _best_sweep_row(frame),
+    }
+    Path(output_path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    frame.to_csv(csv_path, index=False)
+    Path(report_path).write_text(_build_sweep_report(frame), encoding="utf-8")
+    return frame
+
+
 def evaluate_q_policy(config: RunConfig, q_table: dict[str, list[float]]) -> tuple[float, float]:
     env = TrafficLightEnv(
         config.intersection,
@@ -138,3 +171,66 @@ def _update_q_value(
     current = q_table[state][action]
     target = reward + discount * max(q_table[next_state])
     q_table[state][action] = current + learning_rate * (target - current)
+
+
+def _best_sweep_row(frame: pd.DataFrame) -> dict:
+    if frame.empty:
+        return {}
+    return frame.sort_values(["evaluation_average_queue", "episodes"]).iloc[0].to_dict()
+
+
+def _build_sweep_report(frame: pd.DataFrame) -> str:
+    best = _best_sweep_row(frame)
+    lines = [
+        "# Sweep обучения Q-learning",
+        "",
+        "Цель sweep — проверить, как число episode влияет на качество обученной policy.",
+        "",
+        "## Результаты",
+        "",
+        _frame_to_markdown(frame),
+        "",
+    ]
+    if best:
+        lines.extend(
+            [
+                "## Вывод",
+                "",
+                (
+                    f"Минимальная средняя очередь на evaluation получена при "
+                    f"{int(best['episodes'])} episode: "
+                    f"{best['evaluation_average_queue']:.2f}."
+                ),
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def _frame_to_markdown(frame: pd.DataFrame) -> str:
+    columns = [
+        "episodes",
+        "average_reward_last_10",
+        "evaluation_reward",
+        "evaluation_average_queue",
+        "policy_path",
+    ]
+    headers = [
+        "Episodes",
+        "Reward последних 10",
+        "Evaluation reward",
+        "Средняя очередь",
+        "Policy",
+    ]
+    rows = [headers, ["---"] * len(headers)]
+    for _, row in frame[columns].iterrows():
+        rows.append(
+            [
+                f"{row['episodes']:.0f}",
+                f"{row['average_reward_last_10']:.2f}",
+                f"{row['evaluation_reward']:.2f}",
+                f"{row['evaluation_average_queue']:.2f}",
+                str(row["policy_path"]),
+            ]
+        )
+    return "\n".join("| " + " | ".join(row) + " |" for row in rows)

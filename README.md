@@ -37,6 +37,7 @@ streamlit run app/dashboard.py
 ```bash
 traffic-sim run --config configs/base.yaml
 traffic-sim train --config configs/ai.yaml
+traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100
 traffic-sim compare --config configs/experiment.yaml
 traffic-sim compare --config configs/demo_uniform.yaml
 traffic-sim compare --config configs/experiment_suite.yaml
@@ -50,6 +51,19 @@ traffic-sim train --config configs/ai.yaml --episodes 200
 ```
 
 Команда обучает табличную Q-learning policy в Gymnasium-совместимой среде и сохраняет её в `outputs/q_learning_policy.json`.
+
+Чтобы проверить, как число эпизодов влияет на качество policy, используйте sweep:
+
+```bash
+traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100
+```
+
+Sweep сохраняет:
+
+- `outputs/q_learning_sweep.json` — машинно-читаемые результаты;
+- `outputs/q_learning_sweep.csv` — таблицу для дальнейшего анализа;
+- `outputs/q_learning_sweep.md` — краткий Markdown-отчёт;
+- `outputs/q_learning_policy_<episodes>.json` — отдельную policy для каждого значения episodes.
 
 После обучения policy можно включить в общий эксперимент:
 

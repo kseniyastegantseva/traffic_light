@@ -79,3 +79,13 @@
 - Проверено Docker в одном контейнере: `docker compose -f docker-compose.ci.yml run --rm --no-deps sim sh -lc "traffic-sim train --config configs/ai.yaml --episodes 5 && traffic-sim compare --config configs/experiment_suite_rl.yaml"`.
 - Проверено `ruff check .`: без ошибок.
 - Проверено `pytest -q`: 12 тестов прошли.
+
+## 2026-08-14 — Sweep обучения Q-learning
+
+- Добавлена команда `traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100` для серии обучений Q-learning с разным числом эпизодов.
+- Добавлена функция `run_training_sweep`, которая сохраняет JSON, CSV, Markdown-отчёт и отдельные policy-файлы `outputs/q_learning_policy_<episodes>.json`.
+- Добавлен unit-тест на сохранение sweep-отчёта.
+- Проверено `traffic-sim sweep --config configs/ai.yaml --episodes 5,10,20`: сформированы `outputs/q_learning_sweep.json`, `outputs/q_learning_sweep.csv`, `outputs/q_learning_sweep.md`.
+- Проверено Docker: `docker compose -f docker-compose.ci.yml build sim` и `docker compose -f docker-compose.ci.yml run --rm --no-deps sim traffic-sim sweep --config configs/ai.yaml --episodes 2,3`.
+- Проверено `ruff check .`: без ошибок.
+- Проверено `pytest -q`: 13 тестов прошли.
