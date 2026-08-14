@@ -28,3 +28,18 @@ def test_demo_uniform_experiment_builds_unified_report(tmp_path: Path):
     assert json_path.exists()
     assert csv_path.exists()
     assert report_path.exists()
+
+
+def test_experiment_suite_contains_multiple_research_scenarios():
+    config = load_experiment_config("configs/experiment_suite.yaml")
+    results, summary = run_experiment(config)
+    assert len(config.scenarios or []) == 5
+    assert len(results) == len(config.controllers) * len(config.simulation.seeds) * 5
+    assert set(summary["scenario"]) == {
+        "uniform_demo",
+        "low_load",
+        "morning_peak_ns",
+        "evening_peak_ew",
+        "oversaturated",
+    }
+    assert set(summary["controller"]) == {"fixed", "actuated", "ai"}

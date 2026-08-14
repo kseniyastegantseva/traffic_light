@@ -8,6 +8,7 @@ import plotly.express as px
 import streamlit as st
 
 DEFAULT_RESULT_FILES = [
+    Path("outputs/experiment_suite_results.json"),
     Path("outputs/demo_uniform_results.json"),
     Path("outputs/compare_results.json"),
 ]
@@ -168,7 +169,11 @@ def main() -> None:
 
 
 def _select_result_file() -> Path | None:
-    available = [path for path in DEFAULT_RESULT_FILES if path.exists()]
+    generated = sorted(Path("outputs").glob("*_results.json"))
+    available = []
+    for path in [*DEFAULT_RESULT_FILES, *generated]:
+        if path.exists() and path not in available:
+            available.append(path)
     if not available:
         return None
     labels = [str(path) for path in available]

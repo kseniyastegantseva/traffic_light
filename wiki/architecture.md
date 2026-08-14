@@ -52,3 +52,5 @@ Dashboard по умолчанию читает `outputs/demo_uniform_results.jso
 - распределение результатов по seed;
 - среднее ожидание по направлениям;
 - Markdown-отчёт эксперимента.
+
+Dashboard теперь автоматически ищет файлы `outputs/*_results.json`. Приоритетный файл для полного просмотра — `outputs/experiment_suite_results.json`, если он уже сгенерирован.

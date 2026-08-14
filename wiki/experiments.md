@@ -44,3 +44,29 @@ traffic-sim compare --config configs/demo_uniform.yaml
 ```
 
 На первом запуске лучшей стратегией стала `actuated`: среднее ожидание 7.83 с против 12.72 с у `fixed`, улучшение около 38.5%.
+
+## Набор исследовательских сценариев
+
+Файл: `configs/experiment_suite.yaml`.
+
+Это следующий этап после одиночного demo-сценария. Набор содержит пять сценариев:
+
+- `uniform_demo` — равномерная нагрузка 6 авто/мин по каждому направлению;
+- `low_load` — низкая нагрузка 3 авто/мин по каждому направлению;
+- `morning_peak_ns` — утренний пик по направлению north/south;
+- `evening_peak_ew` — вечерний пик по направлению east/west;
+- `oversaturated` — перегруженный перекрёсток 9 авто/мин по каждому направлению.
+
+Команда запуска:
+
+```bash
+traffic-sim compare --config configs/experiment_suite.yaml
+```
+
+Результаты сохраняются в:
+
+- `outputs/experiment_suite_results.json`;
+- `outputs/experiment_suite_summary.csv`;
+- `outputs/experiment_suite_report.md`.
+
+Первичный прогон показал, что `actuated` и `ai` во всех сценариях сокращают среднее ожидание относительно `fixed`. Наиболее заметные улучшения находятся в сценариях направленных часов пик и низкой нагрузки.

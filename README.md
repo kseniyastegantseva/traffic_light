@@ -39,6 +39,13 @@ traffic-sim run --config configs/base.yaml
 traffic-sim train --config configs/ai.yaml
 traffic-sim compare --config configs/experiment.yaml
 traffic-sim compare --config configs/demo_uniform.yaml
+traffic-sim compare --config configs/experiment_suite.yaml
+```
+
+Для полного первичного сравнения стратегий используйте:
+
+```bash
+traffic-sim compare --config configs/experiment_suite.yaml
 ```
 
 Проектная память, решения и журнал задач ведутся в `wiki/`.

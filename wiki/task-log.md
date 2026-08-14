@@ -32,3 +32,18 @@
 - Локальный dashboard запущен на `http://localhost:8501` и проверен HTTP-ответом `200 OK`.
 - Dockerfile разделён на target `base` для экспериментов и target `app` для dashboard/API, чтобы ускорить сборку CLI-образа.
 - Проверено `docker compose -f docker-compose.ci.yml run --rm --no-deps sim traffic-sim compare --config configs/demo_uniform.yaml`: демонстрационный эксперимент успешно выполняется в свежем Docker-образе.
+
+## 2026-08-14 — Набор исследовательских сценариев
+
+- Добавлен `configs/experiment_suite.yaml` с пятью сценариями: равномерная нагрузка, низкая нагрузка, утренний пик north/south, вечерний пик east/west, перегруженный перекрёсток.
+- Dashboard теперь автоматически видит новые файлы `outputs/*_results.json` и отдаёт приоритет `outputs/experiment_suite_results.json`.
+- Сгенерирован единый отчёт `outputs/experiment_suite_report.md`, сводка `outputs/experiment_suite_summary.csv` и подробные результаты `outputs/experiment_suite_results.json`.
+- Проверено `traffic-sim compare --config configs/experiment_suite.yaml`.
+- Проверено `ruff check .`: без ошибок.
+- Проверено `pytest -q`: 6 тестов прошли.
+
+## Текущие проблемы и решения
+
+- Git push из WSL может зависать на GitHub credential. Решение: выполнять `git push origin main` вручную в авторизованной среде либо настроить credential helper для WSL.
+- Docker Desktop без WSL integration не монтирует WSL-папку как volume. Решение: для CLI-проверок использовать `docker-compose.ci.yml` без bind mount; для live-разработки включить WSL integration для Ubuntu в Docker Desktop.
+- Dashboard требует предварительно сгенерированных файлов `outputs/*_results.json`. Решение: перед просмотром запускать `traffic-sim compare --config configs/experiment_suite.yaml`.
