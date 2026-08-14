@@ -100,3 +100,14 @@
 - Проверено Docker: `docker compose -f docker-compose.ci.yml build sim` и `docker compose -f docker-compose.ci.yml run --rm --no-deps sim traffic-sim sweep --config configs/ai.yaml --episodes 2,3 --seeds 11,12`.
 - Проверено `ruff check .`: без ошибок.
 - Проверено `pytest -q`: 13 тестов прошли.
+
+## 2026-08-14 — Выбор лучшей Q-learning policy из sweep
+
+- Добавлена команда `traffic-sim select-policy --config configs/ai.yaml`.
+- Команда читает `outputs/q_learning_sweep.json`, выбирает лучший `episodes` по агрегированной средней очереди и лучший seed-прогон внутри этого `episodes`.
+- Выбранная policy копируется в `outputs/q_learning_policy.json`, после чего её можно использовать в `traffic-sim compare --config configs/experiment_suite_rl.yaml`.
+- Проверено `traffic-sim sweep --config configs/ai.yaml --episodes 2,3 --seeds 11,12 && traffic-sim select-policy --config configs/ai.yaml`.
+- Проверено `traffic-sim compare --config configs/experiment_suite_rl.yaml` после выбора policy.
+- Проверено Docker в одном контейнере: `traffic-sim sweep --config configs/ai.yaml --episodes 2,3 --seeds 11,12 && traffic-sim select-policy --config configs/ai.yaml && traffic-sim compare --config configs/experiment_suite_rl.yaml`.
+- Проверено `ruff check .`: без ошибок.
+- Проверено `pytest -q`: 14 тестов прошли.

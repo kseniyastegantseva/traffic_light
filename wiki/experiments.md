@@ -124,4 +124,12 @@ traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100 --seeds 1,2,3
 - `outputs/q_learning_sweep.md`;
 - `outputs/q_learning_policy_<episodes>_seed_<seed>.json`.
 
+Чтобы передать лучший результат sweep в общий эксперимент, используется команда:
+
+```bash
+traffic-sim select-policy --config configs/ai.yaml
+```
+
+Она выбирает лучший `episodes` по агрегированной средней очереди, затем конкретный лучший seed-прогон внутри этого `episodes` и копирует его policy в `outputs/q_learning_policy.json`.
+
 Проверочный multi-seed sweep на `2,3` эпизода и seed `11,12` показал ожидаемо сильную нестабильность на малом числе эпизодов. Это нормально для раннего табличного RL baseline и означает, что следующий научный шаг — запускать sweep на большем диапазоне episodes и затем проверять выбранную policy в `configs/experiment_suite_rl.yaml`.

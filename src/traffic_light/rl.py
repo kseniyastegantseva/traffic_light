@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -147,6 +148,35 @@ def aggregate_sweep_results(frame: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
+def select_best_policy_from_sweep(
+    sweep_path: str = "outputs/q_learning_sweep.json",
+    output_policy_path: str = "outputs/q_learning_policy.json",
+) -> dict:
+    payload = json.loads(Path(sweep_path).read_text(encoding="utf-8"))
+    best = _best_policy_run(payload)
+    source_policy_path = best.get("policy_path")
+    if not source_policy_path:
+        raise ValueError(f"В sweep-файле нет best_by_average_queue.policy_path: {sweep_path}")
+
+    source = Path(source_policy_path)
+    if not source.exists():
+        raise FileNotFoundError(f"Лучшая policy из sweep не найдена: {source}")
+
+    destination = Path(output_policy_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, destination)
+    selected = {
+        "source_policy_path": str(source),
+        "output_policy_path": str(destination),
+        "episodes": best.get("episodes"),
+        "seed": best.get("seed"),
+        "evaluation_average_queue_mean": best.get("evaluation_average_queue_mean"),
+        "evaluation_average_queue": best.get("evaluation_average_queue"),
+        "evaluation_average_queue_ci95": best.get("evaluation_average_queue_ci95"),
+    }
+    return selected
+
+
 def evaluate_q_policy(config: RunConfig, q_table: dict[str, list[float]]) -> tuple[float, float]:
     env = TrafficLightEnv(
         config.intersection,
@@ -206,6 +236,28 @@ def _with_seed(config: RunConfig, seed: int) -> RunConfig:
     seed_config = config.model_copy(deep=True)
     seed_config.simulation.seed = seed
     return seed_config
+
+
+def _best_policy_run(payload: dict) -> dict:
+    best = payload.get("best_by_average_queue") or {}
+    if best.get("policy_path"):
+        return best
+
+    runs = payload.get("runs") or []
+    if not runs:
+        return best
+
+    episodes = best.get("episodes")
+    candidates = [run for run in runs if run.get("episodes") == episodes] if episodes else runs
+    selected_run = min(
+        candidates,
+        key=lambda run: (
+            run.get("evaluation_average_queue", float("inf")),
+            run.get("episodes", float("inf")),
+            run.get("seed", float("inf")),
+        ),
+    )
+    return {**best, **selected_run}
 
 
 def _best_sweep_row(frame: pd.DataFrame) -> dict:

@@ -9,6 +9,7 @@ from traffic_light.rl import (
     aggregate_sweep_results,
     discretize_observation,
     run_training_sweep,
+    select_best_policy_from_sweep,
     train_q_learning,
 )
 
@@ -124,3 +125,30 @@ def test_training_sweep_writes_report(tmp_path: Path):
     assert summary_csv_path.exists()
     assert report_path.exists()
     assert "Sweep обучения Q-learning" in report_path.read_text(encoding="utf-8")
+
+
+def test_select_best_policy_from_sweep_copies_policy(tmp_path: Path):
+    config = load_run_config("configs/ai.yaml")
+    json_path = tmp_path / "sweep.json"
+    csv_path = tmp_path / "sweep.csv"
+    summary_csv_path = tmp_path / "sweep_summary.csv"
+    report_path = tmp_path / "sweep.md"
+    output_policy_path = tmp_path / "selected_policy.json"
+
+    run_training_sweep(
+        config,
+        [1],
+        seeds=[21],
+        output_path=str(json_path),
+        csv_path=str(csv_path),
+        summary_csv_path=str(summary_csv_path),
+        report_path=str(report_path),
+    )
+    selected = select_best_policy_from_sweep(
+        sweep_path=str(json_path),
+        output_policy_path=str(output_policy_path),
+    )
+
+    assert output_policy_path.exists()
+    assert selected["output_policy_path"] == str(output_policy_path)
+    assert json.loads(output_policy_path.read_text(encoding="utf-8"))["type"] == "tabular_q_learning"

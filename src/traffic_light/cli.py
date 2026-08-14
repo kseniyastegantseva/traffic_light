@@ -7,7 +7,12 @@ import typer
 
 from traffic_light.config import load_experiment_config, load_run_config
 from traffic_light.experiments import build_controller, run_experiment, save_results
-from traffic_light.rl import aggregate_sweep_results, run_training_sweep, train_q_learning
+from traffic_light.rl import (
+    aggregate_sweep_results,
+    run_training_sweep,
+    select_best_policy_from_sweep,
+    train_q_learning,
+)
 from traffic_light.simulation import run_simulation
 
 app = typer.Typer(help="Traffic-light discrete-event simulation CLI.")
@@ -69,3 +74,21 @@ def sweep(
     frame = run_training_sweep(run_config, episode_values, seeds=seed_values)
     typer.echo(aggregate_sweep_results(frame).to_string(index=False))
     typer.echo("\nSweep сохранён: outputs/q_learning_sweep.md")
+
+
+@app.command()
+def select_policy(
+    config: str = typer.Option("configs/ai.yaml", "--config", "-c"),
+    sweep_path: str = typer.Option("outputs/q_learning_sweep.json", "--sweep-path"),
+    output_policy_path: str | None = typer.Option(None, "--output-policy-path"),
+) -> None:
+    run_config = load_run_config(config)
+    target_policy_path = output_policy_path or run_config.output.get(
+        "policy_path",
+        "outputs/q_learning_policy.json",
+    )
+    selected = select_best_policy_from_sweep(
+        sweep_path=sweep_path,
+        output_policy_path=target_policy_path,
+    )
+    typer.echo(json.dumps(selected, ensure_ascii=False, indent=2))

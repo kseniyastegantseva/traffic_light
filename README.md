@@ -38,6 +38,7 @@ streamlit run app/dashboard.py
 traffic-sim run --config configs/base.yaml
 traffic-sim train --config configs/ai.yaml
 traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100 --seeds 1,2,3,4,5
+traffic-sim select-policy --config configs/ai.yaml
 traffic-sim compare --config configs/experiment.yaml
 traffic-sim compare --config configs/demo_uniform.yaml
 traffic-sim compare --config configs/experiment_suite.yaml
@@ -66,7 +67,15 @@ Sweep сохраняет:
 - `outputs/q_learning_sweep.md` — краткий Markdown-отчёт;
 - `outputs/q_learning_policy_<episodes>_seed_<seed>.json` — отдельную policy для каждой пары episodes/seed.
 
-После обучения policy можно включить в общий эксперимент:
+Чтобы использовать лучший вариант из sweep в общем SimPy-сравнении, выполните:
+
+```bash
+traffic-sim select-policy --config configs/ai.yaml
+```
+
+Команда копирует лучшую policy в `outputs/q_learning_policy.json`.
+
+После этого policy можно включить в общий эксперимент:
 
 ```bash
 traffic-sim compare --config configs/experiment_suite_rl.yaml
