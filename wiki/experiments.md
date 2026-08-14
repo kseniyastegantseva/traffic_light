@@ -109,16 +109,19 @@ traffic-sim compare --config configs/experiment_suite_rl.yaml
 Для экспериментального подбора числа эпизодов обучения добавлена команда:
 
 ```bash
-traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100
+traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100 --seeds 1,2,3,4,5
 ```
 
 Она последовательно обучает несколько Q-learning policy и сравнивает их в evaluation-прогоне Gymnasium-среды. Основной ориентир на этом этапе — `evaluation_average_queue`: чем меньше средняя очередь, тем лучше policy справляется с разгрузкой перекрёстка в проверочном эпизоде.
+
+При передаче нескольких seed команда дополнительно считает агрегированную сводку по каждому значению episodes: средние значения метрик, стандартное отклонение средней очереди и полуширину 95% доверительного интервала. Это делает sweep пригодным для выбора параметров обучения в научном отчёте, а не только для ручной отладки.
 
 Результаты сохраняются в:
 
 - `outputs/q_learning_sweep.json`;
 - `outputs/q_learning_sweep.csv`;
+- `outputs/q_learning_sweep_summary.csv`;
 - `outputs/q_learning_sweep.md`;
-- `outputs/q_learning_policy_<episodes>.json`.
+- `outputs/q_learning_policy_<episodes>_seed_<seed>.json`.
 
-Проверочный sweep на `5,10,20` эпизодов показал, что качество не обязано монотонно расти на малом числе эпизодов: при текущем seed лучший evaluation-результат дала policy на 5 эпизодов. Это нормально для раннего табличного RL baseline и означает, что следующий научный шаг — запускать sweep на большем диапазоне episodes и нескольких seed.
+Проверочный multi-seed sweep на `2,3` эпизода и seed `11,12` показал ожидаемо сильную нестабильность на малом числе эпизодов. Это нормально для раннего табличного RL baseline и означает, что следующий научный шаг — запускать sweep на большем диапазоне episodes и затем проверять выбранную policy в `configs/experiment_suite_rl.yaml`.

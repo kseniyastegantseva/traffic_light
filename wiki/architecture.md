@@ -13,7 +13,7 @@
 ```bash
 traffic-sim run --config configs/base.yaml
 traffic-sim train --config configs/ai.yaml
-traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100
+traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100 --seeds 1,2,3,4,5
 traffic-sim compare --config configs/experiment.yaml
 ```
 
@@ -87,9 +87,9 @@ traffic-sim train --config configs/ai.yaml --episodes 200
 Команда:
 
 ```bash
-traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100
+traffic-sim sweep --config configs/ai.yaml --episodes 10,25,50,100 --seeds 1,2,3,4,5
 ```
 
-запускает серию обучений Q-learning с разным числом эпизодов, сохраняет отдельные policy-файлы `outputs/q_learning_policy_<episodes>.json` и формирует `outputs/q_learning_sweep.json`, `outputs/q_learning_sweep.csv`, `outputs/q_learning_sweep.md`. Этот контур нужен для выбора разумной длительности обучения перед большим сравнением стратегий.
+запускает серию обучений Q-learning с разным числом эпизодов и seed, сохраняет отдельные policy-файлы `outputs/q_learning_policy_<episodes>_seed_<seed>.json` и формирует `outputs/q_learning_sweep.json`, `outputs/q_learning_sweep.csv`, `outputs/q_learning_sweep_summary.csv`, `outputs/q_learning_sweep.md`. Этот контур нужен для выбора разумной длительности обучения перед большим сравнением стратегий.
 
 После обучения policy может использоваться в SimPy-экспериментах через контроллер `q_learning`. Он читает Q-table из JSON, выбирает фазу с максимальным Q-значением, а для неизвестного состояния использует pressure-based fallback.

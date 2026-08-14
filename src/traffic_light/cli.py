@@ -7,7 +7,7 @@ import typer
 
 from traffic_light.config import load_experiment_config, load_run_config
 from traffic_light.experiments import build_controller, run_experiment, save_results
-from traffic_light.rl import run_training_sweep, train_q_learning
+from traffic_light.rl import aggregate_sweep_results, run_training_sweep, train_q_learning
 from traffic_light.simulation import run_simulation
 
 app = typer.Typer(help="Traffic-light discrete-event simulation CLI.")
@@ -61,9 +61,11 @@ def train(
 def sweep(
     config: str = typer.Option(..., "--config", "-c"),
     episodes: str = typer.Option("10,25,50,100", "--episodes"),
+    seeds: str | None = typer.Option(None, "--seeds"),
 ) -> None:
     run_config = load_run_config(config)
     episode_values = [int(value.strip()) for value in episodes.split(",") if value.strip()]
-    frame = run_training_sweep(run_config, episode_values)
-    typer.echo(frame.to_string(index=False))
+    seed_values = [int(value.strip()) for value in seeds.split(",") if value.strip()] if seeds else None
+    frame = run_training_sweep(run_config, episode_values, seeds=seed_values)
+    typer.echo(aggregate_sweep_results(frame).to_string(index=False))
     typer.echo("\nSweep сохранён: outputs/q_learning_sweep.md")

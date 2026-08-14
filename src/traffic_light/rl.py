@@ -89,33 +89,62 @@ def train_q_learning(
 def run_training_sweep(
     config: RunConfig,
     episode_values: list[int],
+    seeds: list[int] | None = None,
     output_path: str = "outputs/q_learning_sweep.json",
     csv_path: str = "outputs/q_learning_sweep.csv",
+    summary_csv_path: str = "outputs/q_learning_sweep_summary.csv",
     report_path: str = "outputs/q_learning_sweep.md",
 ) -> pd.DataFrame:
+    sweep_seeds = seeds or [config.simulation.seed]
     rows = []
-    for episodes in episode_values:
-        policy_path = f"outputs/q_learning_policy_{episodes}.json"
-        result = train_q_learning(config, episodes=episodes, policy_path=policy_path)
-        rows.append(result.to_dict())
+    for seed in sweep_seeds:
+        seed_config = _with_seed(config, seed)
+        for episodes in episode_values:
+            policy_path = f"outputs/q_learning_policy_{episodes}_seed_{seed}.json"
+            result = train_q_learning(seed_config, episodes=episodes, policy_path=policy_path)
+            rows.append({"seed": seed, **result.to_dict()})
 
-    frame = pd.DataFrame(rows).sort_values("episodes").reset_index(drop=True)
+    frame = pd.DataFrame(rows).sort_values(["episodes", "seed"]).reset_index(drop=True)
+    summary = aggregate_sweep_results(frame)
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(summary_csv_path).parent.mkdir(parents=True, exist_ok=True)
     Path(report_path).parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "config": {
             "duration_seconds": config.simulation.duration_seconds,
-            "seed": config.simulation.seed,
+            "seeds": sweep_seeds,
             "decision_interval_seconds": config.controller.decision_interval_seconds,
         },
         "runs": frame.to_dict(orient="records"),
-        "best_by_average_queue": _best_sweep_row(frame),
+        "summary": summary.to_dict(orient="records"),
+        "best_by_average_queue": _best_sweep_row(summary),
     }
     Path(output_path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     frame.to_csv(csv_path, index=False)
-    Path(report_path).write_text(_build_sweep_report(frame), encoding="utf-8")
+    summary.to_csv(summary_csv_path, index=False)
+    Path(report_path).write_text(_build_sweep_report(frame, summary), encoding="utf-8")
     return frame
+
+
+def aggregate_sweep_results(frame: pd.DataFrame) -> pd.DataFrame:
+    summary = (
+        frame.groupby("episodes", as_index=False)
+        .agg(
+            runs=("seed", "count"),
+            average_reward_last_10_mean=("average_reward_last_10", "mean"),
+            evaluation_reward_mean=("evaluation_reward", "mean"),
+            evaluation_average_queue_mean=("evaluation_average_queue", "mean"),
+            evaluation_average_queue_std=("evaluation_average_queue", "std"),
+        )
+        .sort_values("episodes")
+        .reset_index(drop=True)
+    )
+    summary["evaluation_average_queue_std"] = summary["evaluation_average_queue_std"].fillna(0.0)
+    summary["evaluation_average_queue_ci95"] = (
+        1.96 * summary["evaluation_average_queue_std"] / np.sqrt(summary["runs"])
+    )
+    return summary
 
 
 def evaluate_q_policy(config: RunConfig, q_table: dict[str, list[float]]) -> tuple[float, float]:
@@ -173,22 +202,37 @@ def _update_q_value(
     q_table[state][action] = current + learning_rate * (target - current)
 
 
+def _with_seed(config: RunConfig, seed: int) -> RunConfig:
+    seed_config = config.model_copy(deep=True)
+    seed_config.simulation.seed = seed
+    return seed_config
+
+
 def _best_sweep_row(frame: pd.DataFrame) -> dict:
     if frame.empty:
         return {}
-    return frame.sort_values(["evaluation_average_queue", "episodes"]).iloc[0].to_dict()
+    queue_column = (
+        "evaluation_average_queue_mean"
+        if "evaluation_average_queue_mean" in frame.columns
+        else "evaluation_average_queue"
+    )
+    return frame.sort_values([queue_column, "episodes"]).iloc[0].to_dict()
 
 
-def _build_sweep_report(frame: pd.DataFrame) -> str:
-    best = _best_sweep_row(frame)
+def _build_sweep_report(frame: pd.DataFrame, summary: pd.DataFrame) -> str:
+    best = _best_sweep_row(summary)
     lines = [
         "# Sweep обучения Q-learning",
         "",
-        "Цель sweep — проверить, как число episode влияет на качество обученной policy.",
+        "Цель sweep — проверить, как число episodes и seed влияют на качество обученной policy.",
         "",
-        "## Результаты",
+        "## Агрегированная сводка",
         "",
-        _frame_to_markdown(frame),
+        _summary_to_markdown(summary),
+        "",
+        "## Подробные прогоны",
+        "",
+        _runs_to_markdown(frame),
         "",
     ]
     if best:
@@ -199,7 +243,8 @@ def _build_sweep_report(frame: pd.DataFrame) -> str:
                 (
                     f"Минимальная средняя очередь на evaluation получена при "
                     f"{int(best['episodes'])} episode: "
-                    f"{best['evaluation_average_queue']:.2f}."
+                    f"{best['evaluation_average_queue_mean']:.2f} "
+                    f"± {best['evaluation_average_queue_ci95']:.2f}."
                 ),
                 "",
             ]
@@ -207,8 +252,29 @@ def _build_sweep_report(frame: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
-def _frame_to_markdown(frame: pd.DataFrame) -> str:
+def _summary_to_markdown(frame: pd.DataFrame) -> str:
     columns = [
+        "episodes",
+        "runs",
+        "average_reward_last_10_mean",
+        "evaluation_reward_mean",
+        "evaluation_average_queue_mean",
+        "evaluation_average_queue_ci95",
+    ]
+    headers = [
+        "Episodes",
+        "Прогонов",
+        "Reward последних 10, mean",
+        "Evaluation reward, mean",
+        "Средняя очередь, mean",
+        "CI95 очереди",
+    ]
+    return _markdown_table(frame, columns, headers)
+
+
+def _runs_to_markdown(frame: pd.DataFrame) -> str:
+    columns = [
+        "seed",
         "episodes",
         "average_reward_last_10",
         "evaluation_reward",
@@ -216,21 +282,28 @@ def _frame_to_markdown(frame: pd.DataFrame) -> str:
         "policy_path",
     ]
     headers = [
+        "Seed",
         "Episodes",
         "Reward последних 10",
         "Evaluation reward",
         "Средняя очередь",
         "Policy",
     ]
+    return _markdown_table(frame, columns, headers)
+
+
+def _markdown_table(frame: pd.DataFrame, columns: list[str], headers: list[str]) -> str:
     rows = [headers, ["---"] * len(headers)]
     for _, row in frame[columns].iterrows():
-        rows.append(
-            [
-                f"{row['episodes']:.0f}",
-                f"{row['average_reward_last_10']:.2f}",
-                f"{row['evaluation_reward']:.2f}",
-                f"{row['evaluation_average_queue']:.2f}",
-                str(row["policy_path"]),
-            ]
-        )
+        rows.append([_format_markdown_value(row[column]) for column in columns])
     return "\n".join("| " + " | ".join(row) + " |" for row in rows)
+
+
+def _format_markdown_value(value: object) -> str:
+    if isinstance(value, float):
+        if value.is_integer():
+            return str(int(value))
+        return f"{value:.2f}"
+    if isinstance(value, int | np.integer):
+        return str(value)
+    return str(value)
