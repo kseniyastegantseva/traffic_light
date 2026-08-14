@@ -94,6 +94,7 @@ def save_results(
 ) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
+    analytics = build_experiment_analytics(summary)
     payload = {
         "experiment": {
             "name": config.name if config else "experiment",
@@ -102,17 +103,69 @@ def save_results(
         },
         "runs": results,
         "summary": summary.to_dict(orient="records"),
+        "analytics": {
+            "scenario_ranking": analytics["scenario_ranking"].to_dict(orient="records"),
+            "strategy_overview": analytics["strategy_overview"].to_dict(orient="records"),
+            "ai_vs_actuated": analytics["ai_vs_actuated"].to_dict(orient="records"),
+        },
     }
     Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     summary.to_csv(csv_path, index=False)
     Path(report_path).parent.mkdir(parents=True, exist_ok=True)
     Path(report_path).write_text(
-        build_markdown_report(summary, config),
+        build_markdown_report(summary, config, analytics),
         encoding="utf-8",
     )
 
 
-def build_markdown_report(summary: pd.DataFrame, config: ExperimentConfig | None = None) -> str:
+def build_experiment_analytics(summary: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    ranking = summary.copy()
+    ranking["wait_rank"] = ranking.groupby("scenario")["average_wait_seconds"].rank(
+        method="min",
+        ascending=True,
+    )
+    ranking = ranking.sort_values(["scenario_title", "wait_rank", "controller"]).reset_index(drop=True)
+
+    wins = (
+        ranking[ranking["wait_rank"] == 1]
+        .groupby("controller")
+        .size()
+        .rename("scenario_wins")
+        .reset_index()
+    )
+    overview = (
+        ranking.groupby("controller")
+        .agg(
+            scenarios=("scenario", "count"),
+            mean_rank=("wait_rank", "mean"),
+            mean_wait_seconds=("average_wait_seconds", "mean"),
+            mean_improvement_vs_fixed_pct=("wait_improvement_vs_fixed_pct", "mean"),
+            mean_queue_length=("average_queue_length", "mean"),
+            mean_throughput_per_hour=("throughput_per_hour", "mean"),
+            mean_fairness_index=("fairness_index", "mean"),
+        )
+        .reset_index()
+        .merge(wins, on="controller", how="left")
+        .fillna({"scenario_wins": 0})
+        .sort_values(["mean_rank", "mean_wait_seconds", "controller"])
+        .reset_index(drop=True)
+    )
+    overview["scenario_wins"] = overview["scenario_wins"].astype(int)
+
+    ai_vs_actuated = _build_ai_vs_actuated(summary)
+    return {
+        "scenario_ranking": ranking,
+        "strategy_overview": overview,
+        "ai_vs_actuated": ai_vs_actuated,
+    }
+
+
+def build_markdown_report(
+    summary: pd.DataFrame,
+    config: ExperimentConfig | None = None,
+    analytics: dict[str, pd.DataFrame] | None = None,
+) -> str:
+    analytics = analytics or build_experiment_analytics(summary)
     title = config.title if config else "Экспериментальный отчёт"
     description = config.description if config else ""
     lines = [
@@ -135,6 +188,72 @@ def build_markdown_report(summary: pd.DataFrame, config: ExperimentConfig | None
             "",
             _to_markdown_table(summary),
             "",
+            "## Рейтинг стратегий по сценариям",
+            "",
+            _to_markdown_table(
+                analytics["scenario_ranking"],
+                [
+                    "scenario_title",
+                    "controller",
+                    "wait_rank",
+                    "average_wait_seconds",
+                    "wait_improvement_vs_fixed_pct",
+                ],
+                {
+                    "scenario_title": "Сценарий",
+                    "controller": "Стратегия",
+                    "wait_rank": "Ранг",
+                    "average_wait_seconds": "Среднее ожидание, с",
+                    "wait_improvement_vs_fixed_pct": "Улучшение к fixed, %",
+                },
+            ),
+            "",
+            "## Сводка по стратегиям",
+            "",
+            _to_markdown_table(
+                analytics["strategy_overview"],
+                [
+                    "controller",
+                    "scenario_wins",
+                    "mean_rank",
+                    "mean_wait_seconds",
+                    "mean_improvement_vs_fixed_pct",
+                    "mean_queue_length",
+                    "mean_fairness_index",
+                ],
+                {
+                    "controller": "Стратегия",
+                    "scenario_wins": "Победы",
+                    "mean_rank": "Средний ранг",
+                    "mean_wait_seconds": "Среднее ожидание, с",
+                    "mean_improvement_vs_fixed_pct": "Среднее улучшение к fixed, %",
+                    "mean_queue_length": "Средняя очередь",
+                    "mean_fairness_index": "Справедливость",
+                },
+            ),
+            "",
+            "## AI против adaptive",
+            "",
+            _to_markdown_table(
+                analytics["ai_vs_actuated"],
+                [
+                    "scenario_title",
+                    "ai_wait_seconds",
+                    "actuated_wait_seconds",
+                    "ai_delta_seconds",
+                    "ai_advantage_pct",
+                    "better_controller",
+                ],
+                {
+                    "scenario_title": "Сценарий",
+                    "ai_wait_seconds": "AI, с",
+                    "actuated_wait_seconds": "Adaptive, с",
+                    "ai_delta_seconds": "AI - adaptive, с",
+                    "ai_advantage_pct": "Преимущество AI, %",
+                    "better_controller": "Лучше",
+                },
+            ),
+            "",
             "## Основные выводы",
             "",
         ]
@@ -145,6 +264,13 @@ def build_markdown_report(summary: pd.DataFrame, config: ExperimentConfig | None
             f"- `{scenario}`: лучшая стратегия `{best['controller']}` со средним ожиданием "
             f"{best['average_wait_seconds']:.2f} с."
         )
+    overview = analytics["strategy_overview"]
+    best_overall = overview.iloc[0]
+    lines.append(
+        f"- В среднем по всем сценариям лучшая стратегия по рангу — "
+        f"`{best_overall['controller']}`: средний ранг {best_overall['mean_rank']:.2f}, "
+        f"побед {int(best_overall['scenario_wins'])}."
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -193,8 +319,56 @@ def _add_baseline_improvement(summary: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
-def _to_markdown_table(frame: pd.DataFrame) -> str:
-    columns = [
+def _build_ai_vs_actuated(summary: pd.DataFrame) -> pd.DataFrame:
+    subset = summary[summary["controller"].isin(["ai", "actuated"])].copy()
+    pivot = subset.pivot_table(
+        index=["scenario", "scenario_title"],
+        columns="controller",
+        values="average_wait_seconds",
+        aggfunc="first",
+    ).reset_index()
+    if "ai" not in pivot or "actuated" not in pivot:
+        return pd.DataFrame(
+            columns=[
+                "scenario",
+                "scenario_title",
+                "ai_wait_seconds",
+                "actuated_wait_seconds",
+                "ai_delta_seconds",
+                "ai_advantage_pct",
+                "better_controller",
+            ]
+        )
+    pivot["ai_wait_seconds"] = pivot["ai"]
+    pivot["actuated_wait_seconds"] = pivot["actuated"]
+    pivot["ai_delta_seconds"] = pivot["ai_wait_seconds"] - pivot["actuated_wait_seconds"]
+    pivot["ai_advantage_pct"] = (
+        (pivot["actuated_wait_seconds"] - pivot["ai_wait_seconds"])
+        / pivot["actuated_wait_seconds"]
+        * 100
+    )
+    pivot["better_controller"] = pivot["ai_delta_seconds"].map(
+        lambda delta: "ai" if delta < 0 else "actuated"
+    )
+    return pivot[
+        [
+            "scenario",
+            "scenario_title",
+            "ai_wait_seconds",
+            "actuated_wait_seconds",
+            "ai_delta_seconds",
+            "ai_advantage_pct",
+            "better_controller",
+        ]
+    ].sort_values("scenario_title")
+
+
+def _to_markdown_table(
+    frame: pd.DataFrame,
+    columns: list[str] | None = None,
+    rename: dict[str, str] | None = None,
+) -> str:
+    columns = columns or [
         "scenario_title",
         "controller",
         "runs",
@@ -206,7 +380,7 @@ def _to_markdown_table(frame: pd.DataFrame) -> str:
         "wait_improvement_vs_fixed_pct",
     ]
     display = frame[columns].copy()
-    rename = {
+    rename = rename or {
         "scenario_title": "Сценарий",
         "controller": "Стратегия",
         "runs": "Запуски",
@@ -219,7 +393,7 @@ def _to_markdown_table(frame: pd.DataFrame) -> str:
     }
     display = display.rename(columns=rename)
     for column in display.select_dtypes(include="number").columns:
-        if column == "Запуски":
+        if column in {"Запуски", "Победы", "Ранг"}:
             display[column] = display[column].map(lambda value: f"{value:.0f}")
         else:
             display[column] = display[column].map(lambda value: f"{value:.2f}")

@@ -38,6 +38,10 @@ def main() -> None:
     payload = json.loads(result_path.read_text(encoding="utf-8"))
     runs = pd.DataFrame(payload["runs"])
     summary = pd.DataFrame(payload["summary"])
+    analytics = payload.get("analytics", {})
+    strategy_overview = pd.DataFrame(analytics.get("strategy_overview", []))
+    scenario_ranking = pd.DataFrame(analytics.get("scenario_ranking", []))
+    ai_vs_actuated = pd.DataFrame(analytics.get("ai_vs_actuated", []))
     experiment = payload.get("experiment", {})
 
     st.title(experiment.get("title") or "Интеллектуальный светофор")
@@ -59,7 +63,9 @@ def main() -> None:
     kpi_c.metric("Улучшение к fixed", f"{improvement:.1f}%")
     kpi_d.metric("Fixed baseline", f"{fixed['average_wait_seconds']:.2f} с")
 
-    summary_tab, runs_tab, report_tab = st.tabs(["Сводка", "Запуски", "Отчёт"])
+    summary_tab, analytics_tab, runs_tab, report_tab = st.tabs(
+        ["Сводка", "Аналитика", "Запуски", "Отчёт"]
+    )
 
     with summary_tab:
         left, right = st.columns(2)
@@ -103,6 +109,79 @@ def main() -> None:
             use_container_width=True,
             hide_index=True,
         )
+
+    with analytics_tab:
+        if strategy_overview.empty or scenario_ranking.empty:
+            st.info("Для выбранного файла нет расширенной аналитики. Перезапустите эксперимент.")
+        else:
+            left, right = st.columns(2)
+            with left:
+                st.plotly_chart(
+                    px.bar(
+                        strategy_overview.sort_values("mean_rank"),
+                        x="controller",
+                        y="mean_rank",
+                        color="controller",
+                        color_discrete_map=COLOR_MAP,
+                        labels={
+                            "controller": "Стратегия",
+                            "mean_rank": "Средний ранг",
+                        },
+                        title="Средний ранг стратегии по всем сценариям",
+                    ).update_xaxes(labelalias=CONTROLLER_LABELS),
+                    use_container_width=True,
+                )
+            with right:
+                st.plotly_chart(
+                    px.bar(
+                        strategy_overview.sort_values("mean_improvement_vs_fixed_pct"),
+                        x="controller",
+                        y="mean_improvement_vs_fixed_pct",
+                        color="controller",
+                        color_discrete_map=COLOR_MAP,
+                        labels={
+                            "controller": "Стратегия",
+                            "mean_improvement_vs_fixed_pct": "Среднее улучшение к fixed, %",
+                        },
+                        title="Среднее улучшение относительно fixed",
+                    ).update_xaxes(labelalias=CONTROLLER_LABELS),
+                    use_container_width=True,
+                )
+
+            st.dataframe(
+                _format_strategy_overview(strategy_overview),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            if not ai_vs_actuated.empty:
+                st.plotly_chart(
+                    px.bar(
+                        ai_vs_actuated,
+                        x="scenario_title",
+                        y="ai_advantage_pct",
+                        color="better_controller",
+                        color_discrete_map={"ai": "#059669", "actuated": "#2563EB"},
+                        labels={
+                            "scenario_title": "Сценарий",
+                            "ai_advantage_pct": "Преимущество AI, %",
+                            "better_controller": "Лучшая стратегия",
+                        },
+                        title="AI против adaptive: положительное значение означает преимущество AI",
+                    ),
+                    use_container_width=True,
+                )
+                st.dataframe(
+                    _format_ai_vs_actuated(ai_vs_actuated),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+            st.dataframe(
+                _format_ranking(scenario_ranking),
+                use_container_width=True,
+                hide_index=True,
+            )
 
     with runs_tab:
         left, right = st.columns(2)
@@ -201,6 +280,48 @@ def _format_summary(summary: pd.DataFrame) -> pd.DataFrame:
         "wait_improvement_vs_fixed_pct": "Улучшение к fixed, %",
     }
     formatted = summary[list(columns)].rename(columns=columns).copy()
+    formatted["Стратегия"] = formatted["Стратегия"].map(_label)
+    return formatted
+
+
+def _format_strategy_overview(overview: pd.DataFrame) -> pd.DataFrame:
+    columns = {
+        "controller": "Стратегия",
+        "scenario_wins": "Победы",
+        "mean_rank": "Средний ранг",
+        "mean_wait_seconds": "Среднее ожидание, с",
+        "mean_improvement_vs_fixed_pct": "Среднее улучшение к fixed, %",
+        "mean_queue_length": "Средняя очередь",
+        "mean_fairness_index": "Справедливость",
+    }
+    formatted = overview[list(columns)].rename(columns=columns).copy()
+    formatted["Стратегия"] = formatted["Стратегия"].map(_label)
+    return formatted
+
+
+def _format_ai_vs_actuated(frame: pd.DataFrame) -> pd.DataFrame:
+    columns = {
+        "scenario_title": "Сценарий",
+        "ai_wait_seconds": "AI, с",
+        "actuated_wait_seconds": "Adaptive, с",
+        "ai_delta_seconds": "AI - adaptive, с",
+        "ai_advantage_pct": "Преимущество AI, %",
+        "better_controller": "Лучше",
+    }
+    formatted = frame[list(columns)].rename(columns=columns).copy()
+    formatted["Лучше"] = formatted["Лучше"].map(_label)
+    return formatted
+
+
+def _format_ranking(ranking: pd.DataFrame) -> pd.DataFrame:
+    columns = {
+        "scenario_title": "Сценарий",
+        "controller": "Стратегия",
+        "wait_rank": "Ранг",
+        "average_wait_seconds": "Среднее ожидание, с",
+        "wait_improvement_vs_fixed_pct": "Улучшение к fixed, %",
+    }
+    formatted = ranking[list(columns)].rename(columns=columns).copy()
     formatted["Стратегия"] = formatted["Стратегия"].map(_label)
     return formatted
 

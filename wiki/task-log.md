@@ -47,3 +47,13 @@
 - Git push из WSL может зависать на GitHub credential. Решение: выполнять `git push origin main` вручную в авторизованной среде либо настроить credential helper для WSL.
 - Docker Desktop без WSL integration не монтирует WSL-папку как volume. Решение: для CLI-проверок использовать `docker-compose.ci.yml` без bind mount; для live-разработки включить WSL integration для Ubuntu в Docker Desktop.
 - Dashboard требует предварительно сгенерированных файлов `outputs/*_results.json`. Решение: перед просмотром запускать `traffic-sim compare --config configs/experiment_suite.yaml`.
+
+## 2026-08-14 — Аналитика для научного отчёта
+
+- Добавлен аналитический слой в JSON-результат эксперимента: `scenario_ranking`, `strategy_overview`, `ai_vs_actuated`.
+- Markdown-отчёт теперь содержит рейтинг стратегий по сценариям, агрегированную сводку по стратегиям и сравнение `ai` против `actuated`.
+- Dashboard расширен вкладкой `Аналитика` с графиками среднего ранга, среднего улучшения относительно `fixed`, сравнением AI-vs-adaptive и таблицами.
+- Проверено `traffic-sim compare --config configs/experiment_suite.yaml`.
+- Проверено `ruff check .`: без ошибок.
+- Проверено `pytest -q`: 7 тестов прошли.
+- Проверено Docker: `docker compose -f docker-compose.ci.yml build sim` и `docker compose -f docker-compose.ci.yml run --rm --no-deps sim traffic-sim compare --config configs/experiment_suite.yaml`.
