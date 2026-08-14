@@ -18,3 +18,4 @@ controller:
 
 output:
   path: outputs/ai_result.json
+  policy_path: outputs/q_learning_policy.json

@@ -57,3 +57,13 @@
 - Проверено `ruff check .`: без ошибок.
 - Проверено `pytest -q`: 7 тестов прошли.
 - Проверено Docker: `docker compose -f docker-compose.ci.yml build sim` и `docker compose -f docker-compose.ci.yml run --rm --no-deps sim traffic-sim compare --config configs/experiment_suite.yaml`.
+
+## 2026-08-14 — Первый RL baseline
+
+- `gym_env.py` заменён с простой заготовки на Gymnasium-совместимую среду перекрёстка с очередями, фазой, действиями и reward.
+- Добавлен `rl.py` с табличным Q-learning обучением, greedy evaluation и сохранением policy в JSON.
+- Команда `traffic-sim train --config configs/ai.yaml --episodes N` теперь обучает Q-learning policy вместо записи эвристического placeholder.
+- В `configs/ai.yaml` добавлен `output.policy_path`.
+- Проверено `traffic-sim train --config configs/ai.yaml --episodes 20`: создан `outputs/q_learning_policy.json`.
+- Проверено `ruff check .`: без ошибок.
+- Проверено `pytest -q`: 10 тестов прошли.

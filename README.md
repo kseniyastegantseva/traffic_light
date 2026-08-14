@@ -42,6 +42,14 @@ traffic-sim compare --config configs/demo_uniform.yaml
 traffic-sim compare --config configs/experiment_suite.yaml
 ```
 
+## Обучение первого RL baseline
+
+```bash
+traffic-sim train --config configs/ai.yaml --episodes 200
+```
+
+Команда обучает табличную Q-learning policy в Gymnasium-совместимой среде и сохраняет её в `outputs/q_learning_policy.json`.
+
 Для полного первичного сравнения стратегий используйте:
 
 ```bash

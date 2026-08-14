@@ -7,6 +7,7 @@ import typer
 
 from traffic_light.config import load_experiment_config, load_run_config
 from traffic_light.experiments import build_controller, run_experiment, save_results
+from traffic_light.rl import train_q_learning
 from traffic_light.simulation import run_simulation
 
 app = typer.Typer(help="Traffic-light discrete-event simulation CLI.")
@@ -42,26 +43,15 @@ def compare(config: str = typer.Option(..., "--config", "-c")) -> None:
 
 
 @app.command()
-def train(config: str = typer.Option(..., "--config", "-c")) -> None:
+def train(
+    config: str = typer.Option(..., "--config", "-c"),
+    episodes: int = typer.Option(200, "--episodes", "-e"),
+) -> None:
     run_config = load_run_config(config)
-    controller = build_controller(
-        run_config.controller,
-        min_green_seconds=run_config.intersection.min_green_seconds,
+    policy_path = run_config.output.get("policy_path", "outputs/q_learning_policy.json")
+    result = train_q_learning(
+        run_config,
+        episodes=episodes,
+        policy_path=policy_path,
     )
-    result = run_simulation(run_config.intersection, run_config.simulation, controller)
-    model_path = Path("outputs/ai_policy_baseline.json")
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    model_path.write_text(
-        json.dumps(
-            {
-                "status": "heuristic_policy_recorded",
-                "controller": controller.name,
-                "seed_result": result.to_dict(),
-                "note": "Stable-Baselines3 training is planned as the next AI iteration.",
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    typer.echo(f"Saved AI policy baseline to {model_path}")
+    typer.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
