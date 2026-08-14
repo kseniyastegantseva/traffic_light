@@ -95,3 +95,11 @@ traffic-sim compare --config configs/experiment_suite.yaml
 ```bash
 traffic-sim train --config configs/ai.yaml --episodes 200
 ```
+
+После обучения policy можно включить в единый эксперимент:
+
+```bash
+traffic-sim compare --config configs/experiment_suite_rl.yaml
+```
+
+`configs/experiment_suite_rl.yaml` добавляет к `fixed`, `actuated` и `ai` четвёртый контроллер `q_learning`, который использует сохранённую policy из `outputs/q_learning_policy.json`.

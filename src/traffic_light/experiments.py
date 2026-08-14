@@ -17,6 +17,7 @@ from traffic_light.controllers import (
     AIPhaseController,
     BaseController,
     FixedTimeController,
+    QLearningPolicyController,
 )
 from traffic_light.simulation import run_simulation
 
@@ -31,7 +32,13 @@ def build_controller(config: ControllerConfig, min_green_seconds: int) -> BaseCo
             min_green_seconds=min_green_seconds,
             decision_interval_seconds=config.decision_interval_seconds,
         )
-    return AIPhaseController(
+    if config.type == "ai":
+        return AIPhaseController(
+            min_green_seconds=min_green_seconds,
+            decision_interval_seconds=config.decision_interval_seconds,
+        )
+    return QLearningPolicyController(
+        policy_path=config.policy_path,
         min_green_seconds=min_green_seconds,
         decision_interval_seconds=config.decision_interval_seconds,
     )

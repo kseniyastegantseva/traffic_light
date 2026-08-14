@@ -82,3 +82,5 @@ traffic-sim train --config configs/ai.yaml --episodes 200
 ```
 
 Результат сохраняется в `outputs/q_learning_policy.json`.
+
+После обучения policy может использоваться в SimPy-экспериментах через контроллер `q_learning`. Он читает Q-table из JSON, выбирает фазу с максимальным Q-значением, а для неизвестного состояния использует pressure-based fallback.

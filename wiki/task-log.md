@@ -67,3 +67,15 @@
 - Проверено `traffic-sim train --config configs/ai.yaml --episodes 20`: создан `outputs/q_learning_policy.json`.
 - Проверено `ruff check .`: без ошибок.
 - Проверено `pytest -q`: 10 тестов прошли.
+
+## 2026-08-14 — Подключение Q-learning policy к SimPy-сравнению
+
+- Добавлен контроллер `QLearningPolicyController`, который читает `outputs/q_learning_policy.json` и выбирает фазу по Q-table.
+- Добавлен тип контроллера `q_learning` в конфигурации.
+- Добавлен `configs/experiment_suite_rl.yaml` для сравнения `fixed`, `actuated`, `ai` и `q_learning` на пяти исследовательских сценариях.
+- Dashboard теперь приоритетно открывает `outputs/experiment_suite_rl_results.json`, если файл уже сгенерирован.
+- Проверено `traffic-sim train --config configs/ai.yaml --episodes 50`.
+- Проверено `traffic-sim compare --config configs/experiment_suite_rl.yaml`.
+- Проверено Docker в одном контейнере: `docker compose -f docker-compose.ci.yml run --rm --no-deps sim sh -lc "traffic-sim train --config configs/ai.yaml --episodes 5 && traffic-sim compare --config configs/experiment_suite_rl.yaml"`.
+- Проверено `ruff check .`: без ошибок.
+- Проверено `pytest -q`: 12 тестов прошли.

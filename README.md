@@ -40,6 +40,7 @@ traffic-sim train --config configs/ai.yaml
 traffic-sim compare --config configs/experiment.yaml
 traffic-sim compare --config configs/demo_uniform.yaml
 traffic-sim compare --config configs/experiment_suite.yaml
+traffic-sim compare --config configs/experiment_suite_rl.yaml
 ```
 
 ## Обучение первого RL baseline
@@ -49,6 +50,18 @@ traffic-sim train --config configs/ai.yaml --episodes 200
 ```
 
 Команда обучает табличную Q-learning policy в Gymnasium-совместимой среде и сохраняет её в `outputs/q_learning_policy.json`.
+
+После обучения policy можно включить в общий эксперимент:
+
+```bash
+traffic-sim compare --config configs/experiment_suite_rl.yaml
+```
+
+В `docker-compose.ci.yml` нет bind mount, поэтому для проверки Q-learning в Docker запускайте обучение и сравнение в одном контейнере:
+
+```bash
+docker compose -f docker-compose.ci.yml run --rm --no-deps sim sh -lc "traffic-sim train --config configs/ai.yaml --episodes 50 && traffic-sim compare --config configs/experiment_suite_rl.yaml"
+```
 
 Для полного первичного сравнения стратегий используйте:
 

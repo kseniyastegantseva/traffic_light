@@ -8,6 +8,7 @@ import plotly.express as px
 import streamlit as st
 
 DEFAULT_RESULT_FILES = [
+    Path("outputs/experiment_suite_rl_results.json"),
     Path("outputs/experiment_suite_results.json"),
     Path("outputs/demo_uniform_results.json"),
     Path("outputs/compare_results.json"),
@@ -17,12 +18,14 @@ CONTROLLER_LABELS = {
     "fixed": "Фиксированная",
     "actuated": "Адаптивная",
     "ai": "AI baseline",
+    "q_learning": "Q-learning",
 }
 
 COLOR_MAP = {
     "fixed": "#6B7280",
     "actuated": "#2563EB",
     "ai": "#059669",
+    "q_learning": "#DC2626",
 }
 
 

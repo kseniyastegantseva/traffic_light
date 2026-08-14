@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 LaneName = Literal["north", "south", "east", "west"]
 PhaseName = Literal["north_south", "east_west"]
-ControllerType = Literal["fixed", "actuated", "ai"]
+ControllerType = Literal["fixed", "actuated", "ai", "q_learning"]
 
 
 class TrafficDemandConfig(BaseModel):
@@ -31,6 +31,7 @@ class ControllerConfig(BaseModel):
     type: ControllerType
     phase_duration_seconds: int = Field(default=35, ge=1)
     decision_interval_seconds: int = Field(default=10, ge=1)
+    policy_path: str = "outputs/q_learning_policy.json"
 
 
 class RunConfig(BaseModel):
