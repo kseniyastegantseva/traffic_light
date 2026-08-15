@@ -5,7 +5,7 @@ from typing import Literal
 
 from traffic_light.config import LaneName, PhaseName
 
-SignalState = Literal["north_south", "east_west", "yellow"]
+SignalColor = Literal["red", "yellow", "green"]
 
 LANES: tuple[LaneName, ...] = ("north", "west", "south", "east")
 PHASE_LANES: dict[PhaseName, tuple[LaneName, LaneName]] = {
@@ -24,7 +24,7 @@ class LoadScenario:
 @dataclass(frozen=True)
 class InteractiveFrame:
     second: int
-    signal: SignalState
+    signals: dict[PhaseName, SignalColor]
     queues: dict[LaneName, int]
     departed: int
 
@@ -34,7 +34,8 @@ class InteractiveFrame:
 
 @dataclass(frozen=True)
 class PhaseInterval:
-    signal: SignalState
+    axis: PhaseName
+    color: SignalColor
     started_at: int
     ended_at: int
 
@@ -107,11 +108,16 @@ def simulate_interactive_traffic(
     total = sum(queues.values())
     scenario = classify_load(queues)
     if total == 0:
-        frame = InteractiveFrame(0, "north_south", queues.copy(), 0)
+        frame = InteractiveFrame(
+            0,
+            {"north_south": "red", "east_west": "red"},
+            queues.copy(),
+            0,
+        )
         return InteractiveSimulationResult(initial, scenario, [frame], [], 0, 0, 0, 0, 0)
 
     current_phase: PhaseName = _heavier_phase(queues)
-    signal: SignalState = current_phase
+    signal_color: SignalColor = "green"
     phase_started_at = 0
     yellow_started_at: int | None = None
     next_phase: PhaseName | None = None
@@ -119,45 +125,58 @@ def simulate_interactive_traffic(
     departed = 0
     switches = 0
     frames: list[InteractiveFrame] = []
-    raw_intervals: list[tuple[SignalState, int]] = [(signal, 0)]
+    raw_intervals: list[tuple[PhaseName, SignalColor, int]] = [
+        (current_phase, signal_color, 0)
+    ]
     second = 0
 
     while sum(queues.values()) > 0:
-        if signal == "yellow":
+        if signal_color == "yellow":
             if yellow_started_at is not None and second - yellow_started_at >= yellow_seconds:
                 current_phase = next_phase or current_phase
-                signal = current_phase
+                signal_color = "green"
                 phase_started_at = second
                 last_service_at = second - service_time_seconds
-                raw_intervals.append((signal, second))
+                raw_intervals.append((current_phase, signal_color, second))
         else:
             green_elapsed = second - phase_started_at
             preferred = _preferred_phase(queues, current_phase, green_elapsed, max_green_seconds)
             if preferred != current_phase and green_elapsed >= min_green_seconds:
-                signal = "yellow"
+                signal_color = "yellow"
                 yellow_started_at = second
                 next_phase = preferred
                 switches += 1
-                raw_intervals.append((signal, second))
+                raw_intervals.append((current_phase, signal_color, second))
 
-        if signal != "yellow" and second - last_service_at >= service_time_seconds:
+        if signal_color == "green" and second - last_service_at >= service_time_seconds:
             for lane in PHASE_LANES[current_phase]:
                 if queues[lane] > 0:
                     queues[lane] -= 1
                     departed += 1
             last_service_at = second
 
-        frames.append(InteractiveFrame(second, signal, queues.copy(), departed))
+        frames.append(
+            InteractiveFrame(
+                second,
+                _signal_states(current_phase, signal_color),
+                queues.copy(),
+                departed,
+            )
+        )
         second += 1
         if second > 7200:
             raise RuntimeError("Интерактивная симуляция превысила ограничение в два часа.")
 
     phases = _build_intervals(raw_intervals, second)
     north_south_green = sum(
-        interval.duration_seconds for interval in phases if interval.signal == "north_south"
+        interval.duration_seconds
+        for interval in phases
+        if interval.axis == "north_south" and interval.color == "green"
     )
     east_west_green = sum(
-        interval.duration_seconds for interval in phases if interval.signal == "east_west"
+        interval.duration_seconds
+        for interval in phases
+        if interval.axis == "east_west" and interval.color == "green"
     )
     return InteractiveSimulationResult(
         initial_queues=initial,
@@ -195,14 +214,21 @@ def _preferred_phase(
 
 
 def _build_intervals(
-    raw_intervals: list[tuple[SignalState, int]], total_time_seconds: int
+    raw_intervals: list[tuple[PhaseName, SignalColor, int]], total_time_seconds: int
 ) -> list[PhaseInterval]:
     intervals = []
-    for index, (signal, started_at) in enumerate(raw_intervals):
+    for index, (axis, color, started_at) in enumerate(raw_intervals):
         ended_at = (
-            raw_intervals[index + 1][1]
+            raw_intervals[index + 1][2]
             if index + 1 < len(raw_intervals)
             else total_time_seconds
         )
-        intervals.append(PhaseInterval(signal, started_at, ended_at))
+        intervals.append(PhaseInterval(axis, color, started_at, ended_at))
     return intervals
+
+
+def _signal_states(
+    active_axis: PhaseName, active_color: SignalColor
+) -> dict[PhaseName, SignalColor]:
+    other_axis: PhaseName = "east_west" if active_axis == "north_south" else "north_south"
+    return {active_axis: active_color, other_axis: "red"}

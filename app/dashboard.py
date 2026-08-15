@@ -116,17 +116,15 @@ def _queue_chart(result: InteractiveSimulationResult):
 def _phase_table(result: InteractiveSimulationResult) -> None:
     st.subheader("Распределение времени")
     north, east = st.columns(2)
-    north.metric("Зелёный север-юг", _format_seconds(result.north_south_green_seconds))
-    east.metric("Зелёный запад-восток", _format_seconds(result.east_west_green_seconds))
+    north.metric("Светофор Юг–Север", _format_seconds(result.north_south_green_seconds))
+    east.metric("Светофор Восток–Запад", _format_seconds(result.east_west_green_seconds))
     if result.phases:
-        labels = {
-            "north_south": "Зелёный: север-юг",
-            "east_west": "Зелёный: запад-восток",
-            "yellow": "Жёлтый сигнал",
-        }
+        axis_labels = {"north_south": "Юг–Север", "east_west": "Восток–Запад"}
+        color_labels = {"green": "Зелёный", "yellow": "Жёлтый", "red": "Красный"}
         phase_rows = [
             {
-                "Фаза": labels[phase.signal],
+                "Светофор": axis_labels[phase.axis],
+                "Сигнал": color_labels[phase.color],
                 "Начало": f"{phase.started_at} с",
                 "Длительность": f"{phase.duration_seconds} с",
             }
@@ -169,10 +167,15 @@ button.primary {{ background:#166534; border-color:#166534; color:#fff; }}
 .lane-label {{ position:absolute; z-index:6; padding:5px 8px; background:#ffffffed; border:1px solid #cad4cd; border-radius:5px; font-size:12px; font-weight:700; }}
 .label-north {{ left:8px; top:8px; }} .label-south {{ right:8px; bottom:8px; }}
 .label-west {{ left:8px; bottom:8px; }} .label-east {{ right:8px; top:8px; }}
-.light {{ position:absolute; z-index:7; width:22px; height:22px; border-radius:50%; background:#a61b1b; border:4px solid #252a27; box-shadow:0 0 0 2px #fff8; }}
-.light.green {{ background:#22c55e; box-shadow:0 0 12px #22c55e; }} .light.yellow {{ background:#facc15; box-shadow:0 0 12px #facc15; }}
-.light.n {{ left:43%; top:31%; }} .light.s {{ right:43%; bottom:31%; }} .light.w {{ left:31%; bottom:43%; }} .light.e {{ right:31%; top:43%; }}
-.phase-label {{ position:absolute; z-index:8; left:50%; top:50%; transform:translate(-50%,-50%); width:150px; text-align:center; color:#fff; font-size:13px; font-weight:750; }}
+.signal-panel {{ position:absolute; z-index:8; left:50%; top:50%; transform:translate(-50%,-50%); width:190px; display:grid; gap:6px; }}
+.signal-unit {{ display:grid; grid-template-columns:82px 1fr; align-items:center; gap:5px; padding:5px; border-radius:5px; background:#f7faf8; border:1px solid #cbd5ce; }}
+.signal-name {{ font-size:10px; line-height:1.1; font-weight:800; color:#253229; text-align:center; }}
+.housing {{ display:flex; justify-content:center; gap:5px; padding:5px; border-radius:5px; background:#202622; box-shadow:0 2px 4px #0005; }}
+.bulb {{ width:16px; height:16px; border-radius:50%; background:#47504a; border:1px solid #111; }}
+.bulb.active.red {{ background:#dc2626; box-shadow:0 0 9px #dc2626; }}
+.bulb.active.yellow {{ background:#facc15; box-shadow:0 0 9px #facc15; }}
+.bulb.active.green {{ background:#22c55e; box-shadow:0 0 9px #22c55e; }}
+.phase-label {{ padding:3px 5px; border-radius:4px; background:#202622e8; color:#fff; text-align:center; font-size:10px; font-weight:750; }}
 .progress {{ height:7px; background:#e6ebe8; }} .progress>div {{ height:100%; background:#166534; width:0; transition:width .2s; }}
 .legend {{ padding:10px 14px; font-size:12px; color:#637068; background:#fff; border-top:1px solid #d9e1dc; }}
 @media(max-width:700px) {{ .scene {{ height:470px; }} .car {{ width:10px;height:6px }} .north .car,.south .car {{width:6px;height:10px}} }}
@@ -194,11 +197,19 @@ button.primary {{ background:#166534; border-color:#166534; color:#fff; }}
     <div class="lane-label label-west">Запад: <span id="count-west">{initial['west']}</span></div>
     <div class="lane-label label-south">Юг: <span id="count-south">{initial['south']}</span></div>
     <div class="lane-label label-east">Восток: <span id="count-east">{initial['east']}</span></div>
-    <span class="light n" id="light-n"></span><span class="light s" id="light-s"></span>
-    <span class="light w" id="light-w"></span><span class="light e" id="light-e"></span>
-    <div class="phase-label" id="phase-label"></div>
+    <div class="signal-panel">
+      <div class="signal-unit" id="signal-north_south">
+        <span class="signal-name">ЮГ–СЕВЕР</span>
+        <div class="housing"><span class="bulb red" data-color="red"></span><span class="bulb yellow" data-color="yellow"></span><span class="bulb green" data-color="green"></span></div>
+      </div>
+      <div class="signal-unit" id="signal-east_west">
+        <span class="signal-name">ВОСТОК–ЗАПАД</span>
+        <div class="housing"><span class="bulb red" data-color="red"></span><span class="bulb yellow" data-color="yellow"></span><span class="bulb green" data-color="green"></span></div>
+      </div>
+      <div class="phase-label" id="phase-label"></div>
+    </div>
   </div>
-  <div class="legend">Зелёный сигнал разрешает одновременный проезд противоположных направлений. Один шаг анимации равен одной секунде модели.</div>
+  <div class="legend">Два светофора работают взаимоисключающе: Юг–Север управляет вертикальным потоком, Восток–Запад — горизонтальным. Один шаг равен одной секунде модели.</div>
 </div>
 <script>
 const frames={json.dumps(frames, ensure_ascii=False)};
@@ -212,17 +223,19 @@ function paint(){{
     const cars=document.querySelectorAll('#cars-'+lane+' .car');
     cars.forEach((car,i)=>car.classList.toggle('passed',i>=frame.queues[lane]));
   }});
-  ['n','s','w','e'].forEach(id=>document.getElementById('light-'+id).className='light '+id);
-  let label='';
-  if(frame.signal==='yellow'){{
-    ['n','s','w','e'].forEach(id=>document.getElementById('light-'+id).classList.add('yellow'));label='Смена фазы';
-  }}else if(frame.signal==='north_south'){{
-    ['n','s'].forEach(id=>document.getElementById('light-'+id).classList.add('green'));label='Зелёный: север-юг';
-  }}else{{
-    ['w','e'].forEach(id=>document.getElementById('light-'+id).classList.add('green'));label='Зелёный: запад-восток';
+  function setSignal(axis,color){{
+    document.querySelectorAll('#signal-'+axis+' .bulb').forEach(bulb=>bulb.classList.toggle('active',bulb.dataset.color===color));
   }}
+  const northSouth=frame.signals.north_south;
+  const eastWest=frame.signals.east_west;
+  setSignal('north_south',northSouth);setSignal('east_west',eastWest);
+  let label='Оба светофора: красный';
+  if(northSouth==='green')label='Проезд: Юг–Север';
+  if(eastWest==='green')label='Проезд: Восток–Запад';
+  if(northSouth==='yellow')label='Юг–Север завершает фазу';
+  if(eastWest==='yellow')label='Восток–Запад завершает фазу';
   let nextChange=index+1;
-  while(nextChange<frames.length && frames[nextChange].signal===frame.signal)nextChange++;
+  while(nextChange<frames.length && frames[nextChange].signals.north_south===northSouth && frames[nextChange].signals.east_west===eastWest)nextChange++;
   const phaseLeft=Math.max(1,nextChange-index);
   document.getElementById('phase-label').textContent=label+' · ещё '+phaseLeft+' с';
   document.getElementById('clock').textContent=frame.second+' с / {result.total_time_seconds} с';

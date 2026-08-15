@@ -29,7 +29,21 @@ def test_interactive_simulation_uses_exact_input_and_clears_all_queues():
 def test_interactive_simulation_switches_to_waiting_direction():
     result = simulate_interactive_traffic({"north": 5, "west": 5, "south": 5, "east": 5})
 
-    signals = {frame.signal for frame in result.frames}
-    assert {"north_south", "yellow", "east_west"}.issubset(signals)
+    signal_pairs = {
+        (frame.signals["north_south"], frame.signals["east_west"])
+        for frame in result.frames
+    }
+    assert ("green", "red") in signal_pairs
+    assert ("yellow", "red") in signal_pairs
+    assert ("red", "green") in signal_pairs
     assert result.switches >= 1
     assert sum(phase.duration_seconds for phase in result.phases) == result.total_time_seconds
+
+
+def test_only_one_of_two_traffic_lights_can_allow_movement():
+    result = simulate_interactive_traffic({"north": 20, "west": 20, "south": 20, "east": 20})
+
+    for frame in result.frames:
+        colors = tuple(frame.signals.values())
+        assert colors.count("green") <= 1
+        assert not ("green" in colors and "yellow" in colors)
