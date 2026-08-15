@@ -22,7 +22,7 @@ LANE_LABELS = {
 VEHICLE_SPRITE_PATH = Path(__file__).parent / "assets" / "vehicle_sprites.jpeg"
 SPRITE_X = (0, 33.333, 66.667, 100)
 SPRITE_Y = (0, 50, 100)
-DASHBOARD_STATE_VERSION = 2
+DASHBOARD_STATE_VERSION = 3
 SIGNAL_COLORS = {
     "red": ("КРАСНЫЙ", "#ef2b2d"),
     "yellow": ("ЖЁЛТЫЙ", "#ffd21f"),
@@ -145,11 +145,64 @@ def _is_current_result(result: object) -> bool:
         return False
     frames = getattr(result, "frames", [])
     phases = getattr(result, "phases", [])
-    frames_are_current = all(hasattr(frame, "signals") for frame in frames)
+    frames_are_current = all(
+        _frame_signals(frame) is not None
+        and hasattr(frame, "queues")
+        and hasattr(frame, "second")
+        and hasattr(frame, "departed")
+        for frame in frames
+    )
     phases_are_current = all(
         hasattr(phase, "axis") and hasattr(phase, "color") for phase in phases
     )
     return frames_are_current and phases_are_current
+
+
+def _frame_to_dict(frame: object) -> dict:
+    if hasattr(frame, "to_dict"):
+        data = frame.to_dict()
+    elif isinstance(frame, dict):
+        data = frame.copy()
+    else:
+        data = {
+            "second": getattr(frame, "second", 0),
+            "queues": getattr(frame, "queues", {}),
+            "departed": getattr(frame, "departed", 0),
+        }
+    data["signals"] = _frame_signals(frame) or {"north_south": "red", "east_west": "red"}
+    data.setdefault("second", getattr(frame, "second", 0))
+    data.setdefault("queues", getattr(frame, "queues", {}))
+    data.setdefault("departed", getattr(frame, "departed", 0))
+    return data
+
+
+def _frame_signals(frame: object) -> dict[str, str] | None:
+    data_signals = None
+    if isinstance(frame, dict):
+        data_signals = frame.get("signals")
+    elif hasattr(frame, "to_dict"):
+        data_signals = frame.to_dict().get("signals")
+    if data_signals is None:
+        data_signals = getattr(frame, "signals", None)
+    if isinstance(data_signals, dict):
+        return {
+            "north_south": _safe_signal_color(data_signals.get("north_south")),
+            "east_west": _safe_signal_color(data_signals.get("east_west")),
+        }
+    legacy_signal = getattr(frame, "signal", None)
+    if isinstance(frame, dict):
+        legacy_signal = frame.get("signal", legacy_signal)
+    if legacy_signal == "north_south":
+        return {"north_south": "green", "east_west": "red"}
+    if legacy_signal == "east_west":
+        return {"north_south": "red", "east_west": "green"}
+    if legacy_signal == "yellow":
+        return {"north_south": "yellow", "east_west": "red"}
+    return None
+
+
+def _safe_signal_color(color: object) -> str:
+    return color if color in SIGNAL_COLORS else "red"
 
 
 def _phase_rows(phases: list[object]) -> list[dict[str, str]]:
@@ -176,7 +229,7 @@ def _phase_rows(phases: list[object]) -> list[dict[str, str]]:
 
 
 def _animation_html(result: InteractiveSimulationResult) -> str:
-    frames = [frame.to_dict() for frame in result.frames]
+    frames = [_frame_to_dict(frame) for frame in result.frames]
     initial = result.initial_queues
     initial_signals = (
         frames[0]["signals"]

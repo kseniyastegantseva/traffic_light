@@ -70,6 +70,29 @@ def test_dashboard_rejects_result_from_legacy_session_schema():
     assert DASHBOARD._is_current_result(current)
 
 
+def test_animation_html_recovers_when_frame_dict_has_no_signals():
+    class HalfMigratedFrame(SimpleNamespace):
+        def to_dict(self):
+            return {
+                "second": self.second,
+                "queues": self.queues,
+                "departed": self.departed,
+            }
+
+    result = simulate_interactive_traffic({"north": 2, "west": 2, "south": 2, "east": 2})
+    result.frames[0] = HalfMigratedFrame(
+        second=0,
+        signals={"north_south": "green", "east_west": "red"},
+        queues={"north": 2, "west": 2, "south": 2, "east": 2},
+        departed=0,
+    )
+
+    html = DASHBOARD._animation_html(result)
+
+    assert '"signals": {"north_south": "green", "east_west": "red"}' in html
+    assert html.count('class="bulb green active"') == 1
+
+
 def test_phase_table_supports_legacy_phase_objects_without_crashing():
     legacy_phases = [
         SimpleNamespace(
