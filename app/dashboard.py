@@ -301,7 +301,7 @@ button.primary {{ background:#166534; border-color:#166534; color:#fff; }}
 <body><div class="sim">
   <div class="toolbar">
     <button id="play" class="primary">Пауза</button><button id="reset">Сначала</button>
-    <select id="speed" aria-label="Скорость"><option value="1">1x</option><option value="2">2x</option><option value="4" selected>4x</option><option value="8">8x</option></select>
+    <select id="speed" aria-label="Скорость"><option value="0.5">0.5x</option><option value="1">1x</option><option value="2">2x</option><option value="4" selected>4x</option><option value="8">8x</option></select>
     <div class="status"><strong id="clock">0 с / {result.total_time_seconds} с</strong><span id="remaining">Ожидает: {sum(initial.values())}</span></div>
   </div>
   <div class="progress"><div id="progress"></div></div>

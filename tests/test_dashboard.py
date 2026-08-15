@@ -34,6 +34,7 @@ def test_animation_embeds_vehicle_sprite_and_two_dynamic_traffic_lights():
     assert 'id="status-north_south"' in html
     assert 'id="status-east_west"' in html
     assert "КРАСНЫЙ" in html and "ЖЁЛТЫЙ" in html and "ЗЕЛЁНЫЙ" in html
+    assert '<option value="0.5">0.5x</option>' in html
     assert html.count('class="bulb green active"') == 1
     assert html.count('class="bulb red active"') == 1
     assert "background-color:#20d866" in html
