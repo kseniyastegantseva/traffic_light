@@ -22,6 +22,7 @@ LANE_LABELS = {
 VEHICLE_SPRITE_PATH = Path(__file__).parent / "assets" / "vehicle_sprites.jpeg"
 SPRITE_X = (0, 33.333, 66.667, 100)
 SPRITE_Y = (0, 50, 100)
+DASHBOARD_STATE_VERSION = 2
 
 
 def main() -> None:
@@ -48,8 +49,14 @@ def main() -> None:
             "Запустить симуляцию", type="primary", width="stretch"
         )
 
-    if submitted or "interactive_result" not in st.session_state:
+    stored_result = st.session_state.get("interactive_result")
+    state_is_current = (
+        st.session_state.get("dashboard_state_version") == DASHBOARD_STATE_VERSION
+        and _is_current_result(stored_result)
+    )
+    if submitted or not state_is_current:
         st.session_state.interactive_result = simulate_interactive_traffic(queues)
+        st.session_state.dashboard_state_version = DASHBOARD_STATE_VERSION
 
     result: InteractiveSimulationResult = st.session_state.interactive_result
     _scenario_banner(result)
@@ -125,18 +132,42 @@ def _phase_table(result: InteractiveSimulationResult) -> None:
     north.metric("Светофор Юг–Север", _format_seconds(result.north_south_green_seconds))
     east.metric("Светофор Восток–Запад", _format_seconds(result.east_west_green_seconds))
     if result.phases:
-        axis_labels = {"north_south": "Юг–Север", "east_west": "Восток–Запад"}
-        color_labels = {"green": "Зелёный", "yellow": "Жёлтый", "red": "Красный"}
-        phase_rows = [
+        st.dataframe(_phase_rows(result.phases), hide_index=True, width="stretch", height=220)
+
+
+def _is_current_result(result: object) -> bool:
+    if result is None or not hasattr(result, "frames") or not hasattr(result, "phases"):
+        return False
+    frames = getattr(result, "frames", [])
+    phases = getattr(result, "phases", [])
+    frames_are_current = all(hasattr(frame, "signals") for frame in frames)
+    phases_are_current = all(
+        hasattr(phase, "axis") and hasattr(phase, "color") for phase in phases
+    )
+    return frames_are_current and phases_are_current
+
+
+def _phase_rows(phases: list[object]) -> list[dict[str, str]]:
+    axis_labels = {"north_south": "Юг–Север", "east_west": "Восток–Запад"}
+    color_labels = {"green": "Зелёный", "yellow": "Жёлтый", "red": "Красный"}
+    rows = []
+    for phase in phases:
+        axis = getattr(phase, "axis", None)
+        color = getattr(phase, "color", None)
+        legacy_signal = getattr(phase, "signal", None)
+        if axis is None and legacy_signal in axis_labels:
+            axis, color = legacy_signal, "green"
+        if axis is None and legacy_signal == "yellow":
+            axis, color = "transition", "yellow"
+        rows.append(
             {
-                "Светофор": axis_labels[phase.axis],
-                "Сигнал": color_labels[phase.color],
-                "Начало": f"{phase.started_at} с",
-                "Длительность": f"{phase.duration_seconds} с",
+                "Светофор": axis_labels.get(axis, "Смена фазы"),
+                "Сигнал": color_labels.get(color, "Не определён"),
+                "Начало": f"{getattr(phase, 'started_at', 0)} с",
+                "Длительность": f"{getattr(phase, 'duration_seconds', 0)} с",
             }
-            for phase in result.phases
-        ]
-        st.dataframe(phase_rows, hide_index=True, width="stretch", height=220)
+        )
+    return rows
 
 
 def _animation_html(result: InteractiveSimulationResult) -> str:
