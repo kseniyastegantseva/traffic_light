@@ -4,6 +4,101 @@
 
 Текущий этап охватывает только **Модель 2 — интеллектуальный светофор**. **Модель 1 — анализ фотографии** пока не реализуется.
 
+## Запуск на новом устройстве
+
+### 1. Установите инструменты
+
+Нужны:
+
+- Git;
+- Docker Desktop с Docker Compose;
+- Python 3.12, если планируется запуск без Docker.
+
+На Windows удобнее всего установить Docker Desktop и запускать команды из PowerShell.
+Если проект хранится внутри WSL, включите интеграцию Docker Desktop с нужным WSL-дистрибутивом
+или используйте `docker-compose.ci.yml`, как показано ниже.
+
+### 2. Склонируйте проект
+
+```bash
+git clone https://github.com/kseniyastegantseva/traffic_light.git
+cd traffic_light
+```
+
+### 3. Запустите dashboard через Docker
+
+Если Docker видит папку проекта как обычную локальную папку, используйте основной compose-файл:
+
+```bash
+docker compose build
+docker compose up dashboard
+```
+
+После запуска откройте в браузере:
+
+```text
+http://localhost:8501
+```
+
+Если проект находится в WSL, а Docker Desktop не может смонтировать WSL-папку, используйте
+вариант без bind mount:
+
+```bash
+docker compose -f docker-compose.ci.yml build
+docker compose -f docker-compose.ci.yml up dashboard
+```
+
+После изменений в коде для этого варианта нужно пересобрать dashboard:
+
+```bash
+docker compose -f docker-compose.ci.yml up -d --build dashboard
+```
+
+### 4. Проверьте CLI-симуляцию
+
+```bash
+docker compose run --rm sim traffic-sim compare --config configs/demo_uniform.yaml
+```
+
+Для WSL-варианта без bind mount:
+
+```bash
+docker compose -f docker-compose.ci.yml run --rm sim traffic-sim compare --config configs/demo_uniform.yaml
+```
+
+Результаты экспериментов сохраняются в `outputs/`.
+
+### 5. Запуск без Docker
+
+```bash
+python -m venv .venv
+```
+
+Linux/macOS/WSL:
+
+```bash
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+traffic-sim compare --config configs/demo_uniform.yaml
+streamlit run app/dashboard.py
+```
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+traffic-sim compare --config configs/demo_uniform.yaml
+streamlit run app/dashboard.py
+```
+
+### 6. Быстрая проверка разработки
+
+```bash
+ruff check .
+pytest -q
+```
+
 ## Быстрый старт через Docker
 
 ```bash
