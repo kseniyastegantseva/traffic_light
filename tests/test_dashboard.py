@@ -34,6 +34,20 @@ def test_animation_embeds_vehicle_sprite_and_two_dynamic_traffic_lights():
     assert 'id="status-north_south"' in html
     assert 'id="status-east_west"' in html
     assert "КРАСНЫЙ" in html and "ЖЁЛТЫЙ" in html and "ЗЕЛЁНЫЙ" in html
+    assert html.count('class="bulb green active"') == 1
+    assert html.count('class="bulb red active"') == 1
+    assert "background-color:#20d866" in html
+    assert "background-color:#ef2b2d" in html
+    assert "bulb.style.backgroundColor=active?signalColors[color]" in html
+
+
+def test_signal_markup_falls_back_to_visible_red_signal():
+    markup = DASHBOARD._signal_markup("north_south", "ЮГ–СЕВЕР", "unknown")
+
+    assert 'data-color="red"' in markup
+    assert 'class="bulb red active"' in markup
+    assert 'style="background-color:#ef2b2d;opacity:1;' in markup
+    assert '>КРАСНЫЙ</span>' in markup
 
 
 def test_car_models_scale_down_for_large_queues():

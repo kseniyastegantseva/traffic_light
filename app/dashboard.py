@@ -23,6 +23,11 @@ VEHICLE_SPRITE_PATH = Path(__file__).parent / "assets" / "vehicle_sprites.jpeg"
 SPRITE_X = (0, 33.333, 66.667, 100)
 SPRITE_Y = (0, 50, 100)
 DASHBOARD_STATE_VERSION = 2
+SIGNAL_COLORS = {
+    "red": ("КРАСНЫЙ", "#ef2b2d"),
+    "yellow": ("ЖЁЛТЫЙ", "#ffd21f"),
+    "green": ("ЗЕЛЁНЫЙ", "#20d866"),
+}
 
 
 def main() -> None:
@@ -173,7 +178,20 @@ def _phase_rows(phases: list[object]) -> list[dict[str, str]]:
 def _animation_html(result: InteractiveSimulationResult) -> str:
     frames = [frame.to_dict() for frame in result.frames]
     initial = result.initial_queues
+    initial_signals = (
+        frames[0]["signals"]
+        if frames
+        else {"north_south": "red", "east_west": "red"}
+    )
     car_markup = _vehicle_markup(initial)
+    signal_markup = {
+        "north_south": _signal_markup(
+            "north_south", "ЮГ–СЕВЕР", initial_signals["north_south"]
+        ),
+        "east_west": _signal_markup(
+            "east_west", "ВОСТОК–ЗАПАД", initial_signals["east_west"]
+        ),
+    }
     sprite_uri = _vehicle_sprite_uri()
     car_slot_size = _car_slot_size(max(initial.values(), default=0))
     return f"""
@@ -245,16 +263,8 @@ button.primary {{ background:#166534; border-color:#166534; color:#fff; }}
     <div class="lane-label label-south">Юг: <span id="count-south">{initial['south']}</span></div>
     <div class="lane-label label-east">Восток: <span id="count-east">{initial['east']}</span></div>
     <div class="signal-panel">
-      <div class="signal-unit" id="signal-north_south">
-        <span class="signal-name">ЮГ–СЕВЕР</span>
-        <div class="housing"><span class="bulb red" data-color="red"></span><span class="bulb yellow" data-color="yellow"></span><span class="bulb green" data-color="green"></span></div>
-        <span class="signal-status" id="status-north_south" aria-live="polite"></span>
-      </div>
-      <div class="signal-unit" id="signal-east_west">
-        <span class="signal-name">ВОСТОК–ЗАПАД</span>
-        <div class="housing"><span class="bulb red" data-color="red"></span><span class="bulb yellow" data-color="yellow"></span><span class="bulb green" data-color="green"></span></div>
-        <span class="signal-status" id="status-east_west" aria-live="polite"></span>
-      </div>
+      {signal_markup['north_south']}
+      {signal_markup['east_west']}
       <div class="phase-label" id="phase-label"></div>
     </div>
   </div>
@@ -263,6 +273,7 @@ button.primary {{ background:#166534; border-color:#166534; color:#fff; }}
 <script>
 const frames={json.dumps(frames, ensure_ascii=False)};
 const initial={json.dumps(initial)};
+const signalColors={{red:'#ef2b2d',yellow:'#ffd21f',green:'#20d866'}};
 let index=0,playing=true,timer;
 const lanes=['north','west','south','east'];
 function paint(){{
@@ -277,7 +288,13 @@ function paint(){{
     if(unit.dataset.color!==color){{
       unit.dataset.color=color;unit.classList.remove('changed');void unit.offsetWidth;unit.classList.add('changed');
     }}
-    unit.querySelectorAll('.bulb').forEach(bulb=>bulb.classList.toggle('active',bulb.dataset.color===color));
+    unit.querySelectorAll('.bulb').forEach(bulb=>{{
+      const active=bulb.dataset.color===color;
+      bulb.classList.toggle('active',active);
+      bulb.style.backgroundColor=active?signalColors[color]:'#3d4540';
+      bulb.style.opacity=active?'1':'.55';
+      bulb.style.boxShadow=active?'0 0 8px '+signalColors[color]+',0 0 18px '+signalColors[color]:'none';
+    }});
     const status=document.getElementById('status-'+axis);
     const colorLabels={{red:'КРАСНЫЙ',yellow:'ЖЁЛТЫЙ',green:'ЗЕЛЁНЫЙ'}};
     status.textContent=colorLabels[color];status.className='signal-status status-'+color;
@@ -306,6 +323,31 @@ document.getElementById('speed').onchange=startTimer;
 paint();startTimer();
 </script></body></html>
 """
+
+
+def _signal_markup(axis: str, label: str, active_color: str) -> str:
+    if active_color not in SIGNAL_COLORS:
+        active_color = "red"
+    bulbs = []
+    for color, (_, hex_color) in SIGNAL_COLORS.items():
+        active = color == active_color
+        class_name = f"bulb {color}" + (" active" if active else "")
+        background = hex_color if active else "#3d4540"
+        opacity = "1" if active else ".55"
+        shadow = f"0 0 8px {hex_color},0 0 18px {hex_color}" if active else "none"
+        bulbs.append(
+            f'<span class="{class_name}" data-color="{color}" '
+            f'style="background-color:{background};opacity:{opacity};'
+            f'box-shadow:{shadow}"></span>'
+        )
+    color_label = SIGNAL_COLORS[active_color][0]
+    return (
+        f'<div class="signal-unit" id="signal-{axis}" data-color="{active_color}">'
+        f'<span class="signal-name">{label}</span>'
+        f'<div class="housing">{"".join(bulbs)}</div>'
+        f'<span class="signal-status status-{active_color}" id="status-{axis}" '
+        f'aria-live="polite">{color_label}</span></div>'
+    )
 
 
 def _vehicle_markup(initial: dict[LaneName, int]) -> dict[LaneName, str]:
