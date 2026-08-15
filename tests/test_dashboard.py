@@ -30,6 +30,10 @@ def test_animation_embeds_vehicle_sprite_and_two_dynamic_traffic_lights():
     assert html.count('class="signal-unit"') == 2
     assert "setSignal('north_south',northSouth)" in html
     assert "setSignal('east_west',eastWest)" in html
+    assert "@keyframes lampPulse" in html
+    assert 'id="status-north_south"' in html
+    assert 'id="status-east_west"' in html
+    assert "КРАСНЫЙ" in html and "ЖЁЛТЫЙ" in html and "ЗЕЛЁНЫЙ" in html
 
 
 def test_car_models_scale_down_for_large_queues():

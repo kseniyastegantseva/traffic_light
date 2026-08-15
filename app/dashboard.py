@@ -208,14 +208,20 @@ button.primary {{ background:#166534; border-color:#166534; color:#fff; }}
 .lane-label {{ position:absolute; z-index:6; padding:5px 8px; background:#ffffffed; border:1px solid #cad4cd; border-radius:5px; font-size:12px; font-weight:700; }}
 .label-north {{ left:8px; top:8px; }} .label-south {{ right:8px; bottom:8px; }}
 .label-west {{ left:8px; bottom:8px; }} .label-east {{ right:8px; top:8px; }}
-.signal-panel {{ position:absolute; z-index:8; left:50%; top:50%; transform:translate(-50%,-50%); width:150px; display:flex; align-items:flex-start; justify-content:center; gap:12px; flex-wrap:wrap; }}
-.signal-unit {{ width:62px; padding:5px; border-radius:5px; background:#f7faf8; border:1px solid #cbd5ce; text-align:center; }}
-.signal-name {{ display:block; min-height:20px; font-size:9px; line-height:1.1; font-weight:800; color:#253229; }}
-.housing {{ width:28px; margin:3px auto 0; display:flex; flex-direction:column; align-items:center; gap:4px; padding:5px; border-radius:6px; background:#202622; box-shadow:0 2px 4px #0007; }}
-.bulb {{ width:17px; height:17px; border-radius:50%; background:#47504a; border:2px solid #111; }}
-.bulb.active.red {{ background:#dc2626; box-shadow:0 0 9px #dc2626; }}
-.bulb.active.yellow {{ background:#facc15; box-shadow:0 0 9px #facc15; }}
-.bulb.active.green {{ background:#22c55e; box-shadow:0 0 9px #22c55e; }}
+.signal-panel {{ position:absolute; z-index:8; left:50%; top:50%; transform:translate(-50%,-50%); width:180px; display:flex; align-items:flex-start; justify-content:center; gap:14px; flex-wrap:wrap; }}
+.signal-unit {{ width:76px; padding:6px; border-radius:6px; background:#f7faf8; border:2px solid #cbd5ce; text-align:center; transition:border-color .2s,box-shadow .2s; }}
+.signal-unit.changed {{ animation:housingFlash .55s ease-out; }}
+.signal-name {{ display:block; min-height:22px; font-size:10px; line-height:1.1; font-weight:800; color:#253229; }}
+.housing {{ width:38px; margin:4px auto; display:flex; flex-direction:column; align-items:center; gap:5px; padding:6px; border-radius:7px; background:#171b18; box-shadow:0 3px 7px #0009; }}
+.bulb {{ width:24px; height:24px; border-radius:50%; background:#3d4540; border:2px solid #090b0a; opacity:.55; transition:background .18s,box-shadow .18s,opacity .18s; }}
+.bulb.active {{ opacity:1; animation:lampPulse .65s ease-in-out infinite alternate; }}
+.bulb.active.red {{ background:#ef2b2d; box-shadow:0 0 8px #ef2b2d,0 0 18px #ef2b2d; }}
+.bulb.active.yellow {{ background:#ffd21f; box-shadow:0 0 8px #ffd21f,0 0 18px #ffd21f; animation-duration:.32s; }}
+.bulb.active.green {{ background:#20d866; box-shadow:0 0 8px #20d866,0 0 18px #20d866; }}
+.signal-status {{ display:block; margin-top:5px; padding:3px 2px; border-radius:3px; color:#fff; font-size:8px; font-weight:900; line-height:1; }}
+.signal-status.status-red {{ background:#b91c1c; }} .signal-status.status-yellow {{ background:#a16207; }} .signal-status.status-green {{ background:#15803d; }}
+@keyframes lampPulse {{ from {{ transform:scale(.92); filter:brightness(.72); }} to {{ transform:scale(1.08); filter:brightness(1.3); }} }}
+@keyframes housingFlash {{ 0% {{ border-color:#fff; box-shadow:0 0 0 0 #fff; }} 55% {{ border-color:#facc15; box-shadow:0 0 0 5px #facc1555; }} 100% {{ border-color:#cbd5ce; box-shadow:none; }} }}
 .phase-label {{ flex-basis:100%; padding:3px 5px; border-radius:4px; background:#202622e8; color:#fff; text-align:center; font-size:10px; font-weight:750; }}
 .progress {{ height:7px; background:#e6ebe8; }} .progress>div {{ height:100%; background:#166534; width:0; transition:width .2s; }}
 .legend {{ padding:10px 14px; font-size:12px; color:#637068; background:#fff; border-top:1px solid #d9e1dc; }}
@@ -242,10 +248,12 @@ button.primary {{ background:#166534; border-color:#166534; color:#fff; }}
       <div class="signal-unit" id="signal-north_south">
         <span class="signal-name">ЮГ–СЕВЕР</span>
         <div class="housing"><span class="bulb red" data-color="red"></span><span class="bulb yellow" data-color="yellow"></span><span class="bulb green" data-color="green"></span></div>
+        <span class="signal-status" id="status-north_south" aria-live="polite"></span>
       </div>
       <div class="signal-unit" id="signal-east_west">
         <span class="signal-name">ВОСТОК–ЗАПАД</span>
         <div class="housing"><span class="bulb red" data-color="red"></span><span class="bulb yellow" data-color="yellow"></span><span class="bulb green" data-color="green"></span></div>
+        <span class="signal-status" id="status-east_west" aria-live="polite"></span>
       </div>
       <div class="phase-label" id="phase-label"></div>
     </div>
@@ -265,7 +273,14 @@ function paint(){{
     cars.forEach((car,i)=>car.classList.toggle('passed',i>=frame.queues[lane]));
   }});
   function setSignal(axis,color){{
-    document.querySelectorAll('#signal-'+axis+' .bulb').forEach(bulb=>bulb.classList.toggle('active',bulb.dataset.color===color));
+    const unit=document.getElementById('signal-'+axis);
+    if(unit.dataset.color!==color){{
+      unit.dataset.color=color;unit.classList.remove('changed');void unit.offsetWidth;unit.classList.add('changed');
+    }}
+    unit.querySelectorAll('.bulb').forEach(bulb=>bulb.classList.toggle('active',bulb.dataset.color===color));
+    const status=document.getElementById('status-'+axis);
+    const colorLabels={{red:'КРАСНЫЙ',yellow:'ЖЁЛТЫЙ',green:'ЗЕЛЁНЫЙ'}};
+    status.textContent=colorLabels[color];status.className='signal-status status-'+color;
   }}
   const northSouth=frame.signals.north_south;
   const eastWest=frame.signals.east_west;
