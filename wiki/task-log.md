@@ -70,6 +70,16 @@
 - Добавлена проверка HTML-контракта для режима `0.5x`.
 - Проверено `ruff check .`: без ошибок; `pytest -q`: 25 тестов прошли.
 
+## 2026-08-15 — Перезапуск dashboard после добавления 0.5x
+
+- Выяснено, что пользователь видел старый dashboard-контейнер, запущенный до добавления
+  режима `0.5x`.
+- Dashboard пересобран и перезапущен командой
+  `docker compose -f docker-compose.ci.yml up -d --build dashboard`.
+- Проверено, что `http://localhost:8501` отвечает статусом 200.
+- Проверено внутри контейнера `traffic_light-dashboard-1`, что файл `/workspace/app/dashboard.py`
+  содержит `<option value="0.5">0.5x</option>`.
+
 ## 2026-08-14 — Аналитика для научного отчёта
 
 - Добавлен аналитический слой в JSON-результат эксперимента: `scenario_ranking`, `strategy_overview`, `ai_vs_actuated`.
