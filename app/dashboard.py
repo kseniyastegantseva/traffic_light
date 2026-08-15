@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import json
 from html import escape
+from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
@@ -16,6 +18,10 @@ LANE_LABELS = {
     "south": "Юг",
     "east": "Восток",
 }
+
+VEHICLE_SPRITE_PATH = Path(__file__).parent / "assets" / "vehicle_sprites.jpeg"
+SPRITE_X = (0, 33.333, 66.667, 100)
+SPRITE_Y = (0, 50, 100)
 
 
 def main() -> None:
@@ -136,10 +142,9 @@ def _phase_table(result: InteractiveSimulationResult) -> None:
 def _animation_html(result: InteractiveSimulationResult) -> str:
     frames = [frame.to_dict() for frame in result.frames]
     initial = result.initial_queues
-    car_markup = {
-        lane: "".join('<span class="car"></span>' for _ in range(count))
-        for lane, count in initial.items()
-    }
+    car_markup = _vehicle_markup(initial)
+    sprite_uri = _vehicle_sprite_uri()
+    car_slot_size = _car_slot_size(max(initial.values(), default=0))
     return f"""
 <!doctype html>
 <html lang="ru">
@@ -156,29 +161,34 @@ button.primary {{ background:#166534; border-color:#166534; color:#fff; }}
 .road-v {{ position:absolute; width:30%; height:100%; left:35%; top:0; background:#414844; border-left:3px solid #f8faf9; border-right:3px solid #f8faf9; }}
 .road-h {{ position:absolute; width:100%; height:30%; left:0; top:35%; background:#414844; border-top:3px solid #f8faf9; border-bottom:3px solid #f8faf9; }}
 .center {{ position:absolute; width:30%; height:30%; left:35%; top:35%; background:#4b534e; z-index:2; }}
-.lane {{ position:absolute; z-index:4; display:flex; gap:3px; align-content:flex-start; overflow:hidden; }}
-.lane.north {{ width:27%; height:32%; left:6%; top:2%; flex-wrap:wrap; align-items:flex-start; }}
-.lane.south {{ width:27%; height:32%; right:6%; bottom:2%; flex-wrap:wrap-reverse; align-items:flex-end; }}
-.lane.west {{ width:32%; height:27%; left:2%; bottom:6%; flex-wrap:wrap-reverse; align-items:flex-end; }}
-.lane.east {{ width:32%; height:27%; right:2%; top:6%; flex-wrap:wrap; align-items:flex-start; }}
-.car {{ display:block; width:14px; height:8px; border-radius:2px; background:#e2553d; border:1px solid #883626; box-shadow:0 1px 1px #0003; transition:opacity .16s,transform .16s; }}
-.north .car,.south .car {{ width:8px; height:14px; background:#276fbf; border-color:#194d86; }}
-.car.passed {{ opacity:0; transform:scale(.3); }}
+.lane {{ --slot:{car_slot_size}px; position:absolute; z-index:4; display:flex; gap:1px; align-content:flex-start; overflow:hidden; }}
+.lane.north {{ width:25%; height:32%; left:37.5%; top:2%; flex-wrap:wrap-reverse; align-content:flex-end; }}
+.lane.south {{ width:25%; height:32%; left:37.5%; bottom:2%; flex-wrap:wrap; align-content:flex-start; }}
+.lane.west {{ width:33%; height:25%; left:2%; top:37.5%; flex-wrap:wrap-reverse; align-content:flex-end; justify-content:flex-end; }}
+.lane.east {{ width:33%; height:25%; right:2%; top:37.5%; flex-wrap:wrap; align-content:flex-start; }}
+.car-slot {{ width:var(--slot); height:var(--slot); display:flex; align-items:center; justify-content:center; flex:0 0 var(--slot); opacity:1; transition:opacity .35s,transform .45s ease-in; }}
+.car-model {{ display:block; width:62%; height:92%; background-color:#414844; background-image:url("{sprite_uri}"); background-size:400% 300%; background-position:var(--sprite-x) var(--sprite-y); background-repeat:no-repeat; background-blend-mode:multiply; filter:saturate(2.4) contrast(1.05) drop-shadow(0 1px 1px #0008); }}
+.north .car-model {{ transform:rotate(180deg); }} .south .car-model {{ transform:rotate(0deg); }}
+.west .car-model {{ transform:rotate(90deg); }} .east .car-model {{ transform:rotate(-90deg); }}
+.north .car-slot.passed {{ opacity:0; transform:translateY(190px); }}
+.south .car-slot.passed {{ opacity:0; transform:translateY(-190px); }}
+.west .car-slot.passed {{ opacity:0; transform:translateX(240px); }}
+.east .car-slot.passed {{ opacity:0; transform:translateX(-240px); }}
 .lane-label {{ position:absolute; z-index:6; padding:5px 8px; background:#ffffffed; border:1px solid #cad4cd; border-radius:5px; font-size:12px; font-weight:700; }}
 .label-north {{ left:8px; top:8px; }} .label-south {{ right:8px; bottom:8px; }}
 .label-west {{ left:8px; bottom:8px; }} .label-east {{ right:8px; top:8px; }}
-.signal-panel {{ position:absolute; z-index:8; left:50%; top:50%; transform:translate(-50%,-50%); width:190px; display:grid; gap:6px; }}
-.signal-unit {{ display:grid; grid-template-columns:82px 1fr; align-items:center; gap:5px; padding:5px; border-radius:5px; background:#f7faf8; border:1px solid #cbd5ce; }}
-.signal-name {{ font-size:10px; line-height:1.1; font-weight:800; color:#253229; text-align:center; }}
-.housing {{ display:flex; justify-content:center; gap:5px; padding:5px; border-radius:5px; background:#202622; box-shadow:0 2px 4px #0005; }}
-.bulb {{ width:16px; height:16px; border-radius:50%; background:#47504a; border:1px solid #111; }}
+.signal-panel {{ position:absolute; z-index:8; left:50%; top:50%; transform:translate(-50%,-50%); width:150px; display:flex; align-items:flex-start; justify-content:center; gap:12px; flex-wrap:wrap; }}
+.signal-unit {{ width:62px; padding:5px; border-radius:5px; background:#f7faf8; border:1px solid #cbd5ce; text-align:center; }}
+.signal-name {{ display:block; min-height:20px; font-size:9px; line-height:1.1; font-weight:800; color:#253229; }}
+.housing {{ width:28px; margin:3px auto 0; display:flex; flex-direction:column; align-items:center; gap:4px; padding:5px; border-radius:6px; background:#202622; box-shadow:0 2px 4px #0007; }}
+.bulb {{ width:17px; height:17px; border-radius:50%; background:#47504a; border:2px solid #111; }}
 .bulb.active.red {{ background:#dc2626; box-shadow:0 0 9px #dc2626; }}
 .bulb.active.yellow {{ background:#facc15; box-shadow:0 0 9px #facc15; }}
 .bulb.active.green {{ background:#22c55e; box-shadow:0 0 9px #22c55e; }}
-.phase-label {{ padding:3px 5px; border-radius:4px; background:#202622e8; color:#fff; text-align:center; font-size:10px; font-weight:750; }}
+.phase-label {{ flex-basis:100%; padding:3px 5px; border-radius:4px; background:#202622e8; color:#fff; text-align:center; font-size:10px; font-weight:750; }}
 .progress {{ height:7px; background:#e6ebe8; }} .progress>div {{ height:100%; background:#166534; width:0; transition:width .2s; }}
 .legend {{ padding:10px 14px; font-size:12px; color:#637068; background:#fff; border-top:1px solid #d9e1dc; }}
-@media(max-width:700px) {{ .scene {{ height:470px; }} .car {{ width:10px;height:6px }} .north .car,.south .car {{width:6px;height:10px}} }}
+@media(max-width:700px) {{ .scene {{ height:470px; }} .signal-panel {{ transform:translate(-50%,-50%) scale(.88); }} }}
 </style></head>
 <body><div class="sim">
   <div class="toolbar">
@@ -220,7 +230,7 @@ function paint(){{
   const frame=frames[index];if(!frame)return;
   lanes.forEach(lane=>{{
     document.getElementById('count-'+lane).textContent=frame.queues[lane];
-    const cars=document.querySelectorAll('#cars-'+lane+' .car');
+    const cars=document.querySelectorAll('#cars-'+lane+' .car-slot');
     cars.forEach((car,i)=>car.classList.toggle('passed',i>=frame.queues[lane]));
   }});
   function setSignal(axis,color){{
@@ -250,6 +260,38 @@ document.getElementById('speed').onchange=startTimer;
 paint();startTimer();
 </script></body></html>
 """
+
+
+def _vehicle_markup(initial: dict[LaneName, int]) -> dict[LaneName, str]:
+    lane_offsets = {"north": 0, "west": 3, "south": 6, "east": 9}
+    markup: dict[LaneName, str] = {}
+    for lane, count in initial.items():
+        vehicles = []
+        for index in range(count):
+            sprite_index = (index + lane_offsets[lane]) % 12
+            row, column = divmod(sprite_index, 4)
+            vehicles.append(
+                '<span class="car-slot"><span class="car-model" '
+                f'style="--sprite-x:{SPRITE_X[column]}%;--sprite-y:{SPRITE_Y[row]}%">'
+                "</span></span>"
+            )
+        markup[lane] = "".join(vehicles)
+    return markup
+
+
+def _vehicle_sprite_uri() -> str:
+    encoded = base64.b64encode(VEHICLE_SPRITE_PATH.read_bytes()).decode("ascii")
+    return f"data:image/jpeg;base64,{encoded}"
+
+
+def _car_slot_size(max_lane_count: int) -> int:
+    if max_lane_count <= 20:
+        return 30
+    if max_lane_count <= 50:
+        return 21
+    if max_lane_count <= 100:
+        return 15
+    return 10
 
 
 def _format_seconds(seconds: int) -> str:
