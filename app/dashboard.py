@@ -1,351 +1,268 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from html import escape
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-DEFAULT_RESULT_FILES = [
-    Path("outputs/experiment_suite_rl_results.json"),
-    Path("outputs/experiment_suite_results.json"),
-    Path("outputs/demo_uniform_results.json"),
-    Path("outputs/compare_results.json"),
-]
+from traffic_light.config import LaneName
+from traffic_light.interactive import InteractiveSimulationResult, simulate_interactive_traffic
 
-CONTROLLER_LABELS = {
-    "fixed": "Фиксированная",
-    "actuated": "Адаптивная",
-    "ai": "AI baseline",
-    "q_learning": "Q-learning",
-}
-
-COLOR_MAP = {
-    "fixed": "#6B7280",
-    "actuated": "#2563EB",
-    "ai": "#059669",
-    "q_learning": "#DC2626",
+LANE_LABELS = {
+    "north": "Север",
+    "west": "Запад",
+    "south": "Юг",
+    "east": "Восток",
 }
 
 
 def main() -> None:
     st.set_page_config(page_title="Интеллектуальный светофор", layout="wide")
+    _apply_styles()
 
-    result_path = _select_result_file()
-    if result_path is None:
-        st.title("Интеллектуальный светофор")
-        st.info("Сначала запустите `traffic-sim compare --config configs/demo_uniform.yaml`.")
-        st.stop()
+    st.title("Интеллектуальный светофор")
+    st.caption("Введите число автомобилей на каждом подходе и запустите управление фазами.")
 
-    payload = json.loads(result_path.read_text(encoding="utf-8"))
-    runs = pd.DataFrame(payload["runs"])
-    summary = pd.DataFrame(payload["summary"])
-    analytics = payload.get("analytics", {})
-    strategy_overview = pd.DataFrame(analytics.get("strategy_overview", []))
-    scenario_ranking = pd.DataFrame(analytics.get("scenario_ranking", []))
-    ai_vs_actuated = pd.DataFrame(analytics.get("ai_vs_actuated", []))
-    experiment = payload.get("experiment", {})
+    with st.form("traffic-input"):
+        columns = st.columns(4)
+        defaults = {"north": 12, "west": 5, "south": 10, "east": 4}
+        queues: dict[LaneName, int] = {}
+        for column, lane in zip(columns, LANE_LABELS, strict=True):
+            with column:
+                queues[lane] = st.number_input(
+                    LANE_LABELS[lane],
+                    min_value=0,
+                    max_value=250,
+                    value=defaults[lane],
+                    step=1,
+                )
+        submitted = st.form_submit_button(
+            "Запустить симуляцию", type="primary", width="stretch"
+        )
 
-    st.title(experiment.get("title") or "Интеллектуальный светофор")
-    if experiment.get("description"):
-        st.caption(experiment["description"])
+    if submitted or "interactive_result" not in st.session_state:
+        st.session_state.interactive_result = simulate_interactive_traffic(queues)
 
-    scenarios = list(summary["scenario_title"].drop_duplicates())
-    selected_scenario = st.sidebar.selectbox("Сценарий", scenarios)
-    scenario_summary = summary[summary["scenario_title"] == selected_scenario].copy()
-    scenario_runs = runs[runs["scenario_title"] == selected_scenario].copy()
+    result: InteractiveSimulationResult = st.session_state.interactive_result
+    _scenario_banner(result)
+    _metrics(result)
 
-    best = scenario_summary.sort_values("average_wait_seconds").iloc[0]
-    fixed = scenario_summary[scenario_summary["controller"] == "fixed"].iloc[0]
-    improvement = best["wait_improvement_vs_fixed_pct"]
+    left, right = st.columns([1.55, 1], gap="large")
+    with left:
+        st.subheader("Работа перекрёстка")
+        st.iframe(_animation_html(result), height=690, width="stretch")
+    with right:
+        st.subheader("Как меняется очередь")
+        st.plotly_chart(_queue_chart(result), width="stretch", config={"displayModeBar": False})
+        st.caption(
+            "Линия показывает, сколько автомобилей ещё ожидает проезда. "
+            "Снижение до нуля означает завершение работы алгоритма."
+        )
+        _phase_table(result)
 
-    kpi_a, kpi_b, kpi_c, kpi_d = st.columns(4)
-    kpi_a.metric("Лучшая стратегия", _label(best["controller"]))
-    kpi_b.metric("Среднее ожидание", f"{best['average_wait_seconds']:.2f} с")
-    kpi_c.metric("Улучшение к fixed", f"{improvement:.1f}%")
-    kpi_d.metric("Fixed baseline", f"{fixed['average_wait_seconds']:.2f} с")
 
-    summary_tab, analytics_tab, runs_tab, report_tab = st.tabs(
-        ["Сводка", "Аналитика", "Запуски", "Отчёт"]
+def _scenario_banner(result: InteractiveSimulationResult) -> None:
+    st.markdown(
+        f"""
+        <div class="scenario-banner">
+          <div><span class="eyebrow">ОПРЕДЕЛЁННЫЙ СЦЕНАРИЙ</span>
+          <strong>{escape(result.scenario.title)}</strong></div>
+          <p>{escape(result.scenario.description)}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    with summary_tab:
-        left, right = st.columns(2)
-        with left:
-            st.plotly_chart(
-                px.bar(
-                    scenario_summary,
-                    x="controller",
-                    y="average_wait_seconds",
-                    error_y="wait_95ci_half_width",
-                    color="controller",
-                    color_discrete_map=COLOR_MAP,
-                    labels={
-                        "controller": "Стратегия",
-                        "average_wait_seconds": "Среднее ожидание, с",
-                        "wait_95ci_half_width": "95% ДИ",
-                    },
-                    title="Среднее время ожидания",
-                ).update_xaxes(labelalias=CONTROLLER_LABELS),
-                use_container_width=True,
-            )
-        with right:
-            st.plotly_chart(
-                px.bar(
-                    scenario_summary,
-                    x="controller",
-                    y="wait_improvement_vs_fixed_pct",
-                    color="controller",
-                    color_discrete_map=COLOR_MAP,
-                    labels={
-                        "controller": "Стратегия",
-                        "wait_improvement_vs_fixed_pct": "Улучшение к fixed, %",
-                    },
-                    title="Снижение ожидания относительно fixed",
-                ).update_xaxes(labelalias=CONTROLLER_LABELS),
-                use_container_width=True,
-            )
 
-        st.dataframe(
-            _format_summary(scenario_summary),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    with analytics_tab:
-        if strategy_overview.empty or scenario_ranking.empty:
-            st.info("Для выбранного файла нет расширенной аналитики. Перезапустите эксперимент.")
-        else:
-            left, right = st.columns(2)
-            with left:
-                st.plotly_chart(
-                    px.bar(
-                        strategy_overview.sort_values("mean_rank"),
-                        x="controller",
-                        y="mean_rank",
-                        color="controller",
-                        color_discrete_map=COLOR_MAP,
-                        labels={
-                            "controller": "Стратегия",
-                            "mean_rank": "Средний ранг",
-                        },
-                        title="Средний ранг стратегии по всем сценариям",
-                    ).update_xaxes(labelalias=CONTROLLER_LABELS),
-                    use_container_width=True,
-                )
-            with right:
-                st.plotly_chart(
-                    px.bar(
-                        strategy_overview.sort_values("mean_improvement_vs_fixed_pct"),
-                        x="controller",
-                        y="mean_improvement_vs_fixed_pct",
-                        color="controller",
-                        color_discrete_map=COLOR_MAP,
-                        labels={
-                            "controller": "Стратегия",
-                            "mean_improvement_vs_fixed_pct": "Среднее улучшение к fixed, %",
-                        },
-                        title="Среднее улучшение относительно fixed",
-                    ).update_xaxes(labelalias=CONTROLLER_LABELS),
-                    use_container_width=True,
-                )
-
-            st.dataframe(
-                _format_strategy_overview(strategy_overview),
-                use_container_width=True,
-                hide_index=True,
-            )
-
-            if not ai_vs_actuated.empty:
-                st.plotly_chart(
-                    px.bar(
-                        ai_vs_actuated,
-                        x="scenario_title",
-                        y="ai_advantage_pct",
-                        color="better_controller",
-                        color_discrete_map={"ai": "#059669", "actuated": "#2563EB"},
-                        labels={
-                            "scenario_title": "Сценарий",
-                            "ai_advantage_pct": "Преимущество AI, %",
-                            "better_controller": "Лучшая стратегия",
-                        },
-                        title="AI против adaptive: положительное значение означает преимущество AI",
-                    ),
-                    use_container_width=True,
-                )
-                st.dataframe(
-                    _format_ai_vs_actuated(ai_vs_actuated),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-
-            st.dataframe(
-                _format_ranking(scenario_ranking),
-                use_container_width=True,
-                hide_index=True,
-            )
-
-    with runs_tab:
-        left, right = st.columns(2)
-        with left:
-            st.plotly_chart(
-                px.box(
-                    scenario_runs,
-                    x="controller",
-                    y="average_wait_seconds",
-                    color="controller",
-                    points="all",
-                    color_discrete_map=COLOR_MAP,
-                    labels={
-                        "controller": "Стратегия",
-                        "average_wait_seconds": "Среднее ожидание, с",
-                    },
-                    title="Разброс среднего ожидания по seed",
-                ).update_xaxes(labelalias=CONTROLLER_LABELS),
-                use_container_width=True,
-            )
-        with right:
-            lane_waits = _lane_waits(scenario_runs)
-            st.plotly_chart(
-                px.bar(
-                    lane_waits,
-                    x="lane",
-                    y="average_wait_seconds",
-                    color="controller",
-                    barmode="group",
-                    color_discrete_map=COLOR_MAP,
-                    labels={
-                        "lane": "Направление",
-                        "average_wait_seconds": "Среднее ожидание, с",
-                        "controller": "Стратегия",
-                    },
-                    title="Ожидание по направлениям",
-                ),
-                use_container_width=True,
-            )
-
-        st.dataframe(
-            scenario_runs[
-                [
-                    "seed",
-                    "controller",
-                    "vehicles_arrived",
-                    "vehicles_departed",
-                    "average_wait_seconds",
-                    "average_queue_length",
-                    "throughput_per_hour",
-                    "fairness_index",
-                ]
-            ].sort_values(["controller", "seed"]),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    with report_tab:
-        report_path = _report_path(result_path)
-        if report_path.exists():
-            st.markdown(report_path.read_text(encoding="utf-8"))
-        else:
-            st.warning("Markdown-отчёт для выбранного результата не найден.")
+def _metrics(result: InteractiveSimulationResult) -> None:
+    total = sum(result.initial_queues.values())
+    columns = st.columns(4)
+    columns[0].metric("Автомобилей", total)
+    columns[1].metric("Время работы", _format_seconds(result.total_time_seconds))
+    columns[2].metric("Переключений фаз", result.switches)
+    columns[3].metric("Проехало", result.departed)
 
 
-def _select_result_file() -> Path | None:
-    generated = sorted(Path("outputs").glob("*_results.json"))
-    available = []
-    for path in [*DEFAULT_RESULT_FILES, *generated]:
-        if path.exists() and path not in available:
-            available.append(path)
-    if not available:
-        return None
-    labels = [str(path) for path in available]
-    selected = st.sidebar.radio("Файл результатов", labels, index=0)
-    return Path(selected)
-
-
-def _report_path(result_path: Path) -> Path:
-    return result_path.with_name(result_path.name.replace("_results.json", "_report.md"))
-
-
-def _label(controller: str) -> str:
-    return CONTROLLER_LABELS.get(controller, controller)
-
-
-def _format_summary(summary: pd.DataFrame) -> pd.DataFrame:
-    columns = {
-        "controller": "Стратегия",
-        "runs": "Запуски",
-        "average_wait_seconds": "Среднее ожидание, с",
-        "median_wait_seconds": "Медианное ожидание, с",
-        "average_queue_length": "Средняя очередь",
-        "throughput_per_hour": "Пропускная способность/час",
-        "fairness_index": "Справедливость",
-        "wait_improvement_vs_fixed_pct": "Улучшение к fixed, %",
-    }
-    formatted = summary[list(columns)].rename(columns=columns).copy()
-    formatted["Стратегия"] = formatted["Стратегия"].map(_label)
-    return formatted
-
-
-def _format_strategy_overview(overview: pd.DataFrame) -> pd.DataFrame:
-    columns = {
-        "controller": "Стратегия",
-        "scenario_wins": "Победы",
-        "mean_rank": "Средний ранг",
-        "mean_wait_seconds": "Среднее ожидание, с",
-        "mean_improvement_vs_fixed_pct": "Среднее улучшение к fixed, %",
-        "mean_queue_length": "Средняя очередь",
-        "mean_fairness_index": "Справедливость",
-    }
-    formatted = overview[list(columns)].rename(columns=columns).copy()
-    formatted["Стратегия"] = formatted["Стратегия"].map(_label)
-    return formatted
-
-
-def _format_ai_vs_actuated(frame: pd.DataFrame) -> pd.DataFrame:
-    columns = {
-        "scenario_title": "Сценарий",
-        "ai_wait_seconds": "AI, с",
-        "actuated_wait_seconds": "Adaptive, с",
-        "ai_delta_seconds": "AI - adaptive, с",
-        "ai_advantage_pct": "Преимущество AI, %",
-        "better_controller": "Лучше",
-    }
-    formatted = frame[list(columns)].rename(columns=columns).copy()
-    formatted["Лучше"] = formatted["Лучше"].map(_label)
-    return formatted
-
-
-def _format_ranking(ranking: pd.DataFrame) -> pd.DataFrame:
-    columns = {
-        "scenario_title": "Сценарий",
-        "controller": "Стратегия",
-        "wait_rank": "Ранг",
-        "average_wait_seconds": "Среднее ожидание, с",
-        "wait_improvement_vs_fixed_pct": "Улучшение к fixed, %",
-    }
-    formatted = ranking[list(columns)].rename(columns=columns).copy()
-    formatted["Стратегия"] = formatted["Стратегия"].map(_label)
-    return formatted
-
-
-def _lane_waits(runs: pd.DataFrame) -> pd.DataFrame:
-    rows = []
-    for _, run in runs.iterrows():
-        for lane, wait in run["lane_waits"].items():
-            rows.append(
-                {
-                    "controller": run["controller"],
-                    "lane": lane,
-                    "average_wait_seconds": wait,
-                }
-            )
+def _queue_chart(result: InteractiveSimulationResult):
+    rows = [
+        {
+            "Время, с": frame.second,
+            "Осталось автомобилей": sum(frame.queues.values()),
+        }
+        for frame in result.frames
+    ]
     frame = pd.DataFrame(rows)
-    return (
-        frame.groupby(["controller", "lane"], as_index=False)["average_wait_seconds"]
-        .mean()
-        .sort_values(["controller", "lane"])
+    figure = px.line(
+        frame,
+        x="Время, с",
+        y="Осталось автомобилей",
+        markers=result.total_time_seconds <= 30,
+    )
+    figure.update_traces(line_color="#166534", line_width=3)
+    figure.update_layout(
+        height=320,
+        margin={"l": 10, "r": 10, "t": 16, "b": 10},
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        hovermode="x unified",
+    )
+    figure.update_yaxes(rangemode="tozero", gridcolor="#e5e7eb")
+    figure.update_xaxes(gridcolor="#f3f4f6")
+    return figure
+
+
+def _phase_table(result: InteractiveSimulationResult) -> None:
+    st.subheader("Распределение времени")
+    north, east = st.columns(2)
+    north.metric("Зелёный север-юг", _format_seconds(result.north_south_green_seconds))
+    east.metric("Зелёный запад-восток", _format_seconds(result.east_west_green_seconds))
+    if result.phases:
+        labels = {
+            "north_south": "Зелёный: север-юг",
+            "east_west": "Зелёный: запад-восток",
+            "yellow": "Жёлтый сигнал",
+        }
+        phase_rows = [
+            {
+                "Фаза": labels[phase.signal],
+                "Начало": f"{phase.started_at} с",
+                "Длительность": f"{phase.duration_seconds} с",
+            }
+            for phase in result.phases
+        ]
+        st.dataframe(phase_rows, hide_index=True, width="stretch", height=220)
+
+
+def _animation_html(result: InteractiveSimulationResult) -> str:
+    frames = [frame.to_dict() for frame in result.frames]
+    initial = result.initial_queues
+    car_markup = {
+        lane: "".join('<span class="car"></span>' for _ in range(count))
+        for lane, count in initial.items()
+    }
+    return f"""
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><style>
+* {{ box-sizing: border-box; }}
+body {{ margin:0; font-family:Inter,Arial,sans-serif; color:#17211b; background:#fff; }}
+.sim {{ border:1px solid #d9e1dc; border-radius:8px; overflow:hidden; background:#f5f7f5; }}
+.toolbar {{ height:58px; display:flex; align-items:center; gap:10px; padding:10px 14px; background:#fff; border-bottom:1px solid #d9e1dc; }}
+button,select {{ height:36px; border:1px solid #c9d3cc; background:#fff; border-radius:6px; padding:0 12px; font-weight:650; color:#17211b; cursor:pointer; }}
+button.primary {{ background:#166534; border-color:#166534; color:#fff; }}
+.status {{ margin-left:auto; text-align:right; }}
+.status strong {{ display:block; font-size:16px; }} .status span {{ font-size:12px; color:#637068; }}
+.scene {{ position:relative; height:555px; background:#dce8dc; overflow:hidden; }}
+.road-v {{ position:absolute; width:30%; height:100%; left:35%; top:0; background:#414844; border-left:3px solid #f8faf9; border-right:3px solid #f8faf9; }}
+.road-h {{ position:absolute; width:100%; height:30%; left:0; top:35%; background:#414844; border-top:3px solid #f8faf9; border-bottom:3px solid #f8faf9; }}
+.center {{ position:absolute; width:30%; height:30%; left:35%; top:35%; background:#4b534e; z-index:2; }}
+.lane {{ position:absolute; z-index:4; display:flex; gap:3px; align-content:flex-start; overflow:hidden; }}
+.lane.north {{ width:27%; height:32%; left:6%; top:2%; flex-wrap:wrap; align-items:flex-start; }}
+.lane.south {{ width:27%; height:32%; right:6%; bottom:2%; flex-wrap:wrap-reverse; align-items:flex-end; }}
+.lane.west {{ width:32%; height:27%; left:2%; bottom:6%; flex-wrap:wrap-reverse; align-items:flex-end; }}
+.lane.east {{ width:32%; height:27%; right:2%; top:6%; flex-wrap:wrap; align-items:flex-start; }}
+.car {{ display:block; width:14px; height:8px; border-radius:2px; background:#e2553d; border:1px solid #883626; box-shadow:0 1px 1px #0003; transition:opacity .16s,transform .16s; }}
+.north .car,.south .car {{ width:8px; height:14px; background:#276fbf; border-color:#194d86; }}
+.car.passed {{ opacity:0; transform:scale(.3); }}
+.lane-label {{ position:absolute; z-index:6; padding:5px 8px; background:#ffffffed; border:1px solid #cad4cd; border-radius:5px; font-size:12px; font-weight:700; }}
+.label-north {{ left:8px; top:8px; }} .label-south {{ right:8px; bottom:8px; }}
+.label-west {{ left:8px; bottom:8px; }} .label-east {{ right:8px; top:8px; }}
+.light {{ position:absolute; z-index:7; width:22px; height:22px; border-radius:50%; background:#a61b1b; border:4px solid #252a27; box-shadow:0 0 0 2px #fff8; }}
+.light.green {{ background:#22c55e; box-shadow:0 0 12px #22c55e; }} .light.yellow {{ background:#facc15; box-shadow:0 0 12px #facc15; }}
+.light.n {{ left:43%; top:31%; }} .light.s {{ right:43%; bottom:31%; }} .light.w {{ left:31%; bottom:43%; }} .light.e {{ right:31%; top:43%; }}
+.phase-label {{ position:absolute; z-index:8; left:50%; top:50%; transform:translate(-50%,-50%); width:150px; text-align:center; color:#fff; font-size:13px; font-weight:750; }}
+.progress {{ height:7px; background:#e6ebe8; }} .progress>div {{ height:100%; background:#166534; width:0; transition:width .2s; }}
+.legend {{ padding:10px 14px; font-size:12px; color:#637068; background:#fff; border-top:1px solid #d9e1dc; }}
+@media(max-width:700px) {{ .scene {{ height:470px; }} .car {{ width:10px;height:6px }} .north .car,.south .car {{width:6px;height:10px}} }}
+</style></head>
+<body><div class="sim">
+  <div class="toolbar">
+    <button id="play" class="primary">Пауза</button><button id="reset">Сначала</button>
+    <select id="speed" aria-label="Скорость"><option value="1">1x</option><option value="2">2x</option><option value="4" selected>4x</option><option value="8">8x</option></select>
+    <div class="status"><strong id="clock">0 с / {result.total_time_seconds} с</strong><span id="remaining">Ожидает: {sum(initial.values())}</span></div>
+  </div>
+  <div class="progress"><div id="progress"></div></div>
+  <div class="scene">
+    <div class="road-v"></div><div class="road-h"></div><div class="center"></div>
+    <div class="lane north" id="cars-north">{car_markup['north']}</div>
+    <div class="lane west" id="cars-west">{car_markup['west']}</div>
+    <div class="lane south" id="cars-south">{car_markup['south']}</div>
+    <div class="lane east" id="cars-east">{car_markup['east']}</div>
+    <div class="lane-label label-north">Север: <span id="count-north">{initial['north']}</span></div>
+    <div class="lane-label label-west">Запад: <span id="count-west">{initial['west']}</span></div>
+    <div class="lane-label label-south">Юг: <span id="count-south">{initial['south']}</span></div>
+    <div class="lane-label label-east">Восток: <span id="count-east">{initial['east']}</span></div>
+    <span class="light n" id="light-n"></span><span class="light s" id="light-s"></span>
+    <span class="light w" id="light-w"></span><span class="light e" id="light-e"></span>
+    <div class="phase-label" id="phase-label"></div>
+  </div>
+  <div class="legend">Зелёный сигнал разрешает одновременный проезд противоположных направлений. Один шаг анимации равен одной секунде модели.</div>
+</div>
+<script>
+const frames={json.dumps(frames, ensure_ascii=False)};
+const initial={json.dumps(initial)};
+let index=0,playing=true,timer;
+const lanes=['north','west','south','east'];
+function paint(){{
+  const frame=frames[index];if(!frame)return;
+  lanes.forEach(lane=>{{
+    document.getElementById('count-'+lane).textContent=frame.queues[lane];
+    const cars=document.querySelectorAll('#cars-'+lane+' .car');
+    cars.forEach((car,i)=>car.classList.toggle('passed',i>=frame.queues[lane]));
+  }});
+  ['n','s','w','e'].forEach(id=>document.getElementById('light-'+id).className='light '+id);
+  let label='';
+  if(frame.signal==='yellow'){{
+    ['n','s','w','e'].forEach(id=>document.getElementById('light-'+id).classList.add('yellow'));label='Смена фазы';
+  }}else if(frame.signal==='north_south'){{
+    ['n','s'].forEach(id=>document.getElementById('light-'+id).classList.add('green'));label='Зелёный: север-юг';
+  }}else{{
+    ['w','e'].forEach(id=>document.getElementById('light-'+id).classList.add('green'));label='Зелёный: запад-восток';
+  }}
+  let nextChange=index+1;
+  while(nextChange<frames.length && frames[nextChange].signal===frame.signal)nextChange++;
+  const phaseLeft=Math.max(1,nextChange-index);
+  document.getElementById('phase-label').textContent=label+' · ещё '+phaseLeft+' с';
+  document.getElementById('clock').textContent=frame.second+' с / {result.total_time_seconds} с';
+  document.getElementById('remaining').textContent='Ожидает: '+lanes.reduce((s,l)=>s+frame.queues[l],0)+' · Проехало: '+frame.departed;
+  document.getElementById('progress').style.width=(100*(index+1)/frames.length)+'%';
+  if(index>=frames.length-1){{playing=false;document.getElementById('play').textContent='Повторить';clearInterval(timer);}}
+}}
+function startTimer(){{clearInterval(timer);if(playing)timer=setInterval(()=>{{if(index<frames.length-1){{index++;paint();}}}},1000/Number(document.getElementById('speed').value));}}
+document.getElementById('play').onclick=()=>{{if(index>=frames.length-1){{index=0;playing=false;}}playing=!playing;document.getElementById('play').textContent=playing?'Пауза':'Продолжить';paint();startTimer();}};
+document.getElementById('reset').onclick=()=>{{index=0;playing=true;document.getElementById('play').textContent='Пауза';paint();startTimer();}};
+document.getElementById('speed').onchange=startTimer;
+paint();startTimer();
+</script></body></html>
+"""
+
+
+def _format_seconds(seconds: int) -> str:
+    minutes, remainder = divmod(seconds, 60)
+    return f"{minutes} мин {remainder} с" if minutes else f"{remainder} с"
+
+
+def _apply_styles() -> None:
+    st.markdown(
+        """
+        <style>
+        .block-container {max-width:1280px;padding-top:2rem;padding-bottom:3rem;}
+        h1,h2,h3 {letter-spacing:0 !important;}
+        .scenario-banner {display:flex;align-items:center;justify-content:space-between;gap:24px;
+          margin:18px 0;padding:16px 18px;border-left:5px solid #166534;background:#f2f7f3;}
+        .scenario-banner strong {display:block;font-size:19px;margin-top:3px;}
+        .scenario-banner p {margin:0;max-width:560px;color:#4b5d52;}
+        .eyebrow {font-size:11px;font-weight:800;color:#166534;}
+        div[data-testid="stMetric"] {border-top:2px solid #d7e2da;padding-top:12px;}
+        div[data-testid="stForm"] {border-radius:8px;border-color:#d7e2da;}
+        @media(max-width:700px) {.scenario-banner {display:block}.scenario-banner p {margin-top:8px}}
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
 
 
-main()
+if __name__ == "__main__":
+    main()
